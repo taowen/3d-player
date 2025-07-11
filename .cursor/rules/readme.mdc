@@ -29,17 +29,9 @@ tests/
 ├── test_hw_video_decoder.cpp  # 硬件视频解码器测试
 └── test_rgb_video_decoder.cpp # RGB视频解码器测试
 test_data/
-└── sample_hw.mkv             # 测试文件
+└── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
 build.ps1                     # PowerShell构建脚本
 ```
-
-## ⚠️ 重要说明
-
-**本软件严格要求硬件解码，绝不允许软件解码回退！**
-
-- 所有视频解码必须使用 DirectX 11 硬件加速
-- 如果系统不支持硬件解码，程序将直接失败而不是降级到软件解码
-- 这确保了一致的高性能 GPU 加速体验
 
 ## 核心组件
 
@@ -49,22 +41,10 @@ MKV文件流读取器，提供 Pull-style 接口，支持视频和音频流的�
 ### HwVideoDecoder  
 DirectX 11 硬件视频解码器，使用 FFmpeg AVBufferPool 进行内存管理。详细接口请参考 `src/hw_video_decoder.h`。
 
-**关键特性：**
-- 自动检测和选择 D3D11VA 硬件解码器
-- 智能的像素格式协商（首选 D3D11，支持多种硬件格式）
-- **⚠️ 严格硬件解码要求**：无硬件格式时直接失败，绝不允许软件解码
-- 完整的硬件设备上下文管理
-
-**测试验证：**
-- ✅ 成功找到并初始化 D3D11VA 硬件解码器
-- ✅ 正确创建 D3D11 设备上下文
-- ✅ 像素格式协商正常工作
-- ✅ 强制硬件解码，无软件回退机制
-
 ### RgbVideoDecoder
 RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部构造 HwVideoDecoder，使用 VideoProcessorBlt 将 YUV 格式转换为 RGB D3D11 纹理。详细接口请参考 `src/rgb_video_decoder.h`。
 
-## 硬件解码特性
+## 核心决策
 
 ### DirectX 11 硬件加速
 - **⚠️ 强制硬件解码**：本软件严格要求硬件解码，绝不允许软件解码回退
@@ -96,21 +76,6 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测�
 - Git Bash 使用 Linux 风格路径分隔符 `/`，不认识 Windows 的 `\`
 - 避免路径解析错误：`C:\path\to\file` vs `C:/path/to/file`
 
-## 内存管理说明
-
-### FFmpeg 内存管理模式
-根据 FFmpeg 官方文档，`avcodec_receive_frame()` 的内存管理遵循以下规则：
-
-1. **调用者责任**：`avcodec_receive_frame()` 返回的 AVFrame 由调用者负责释放
-2. **所有权转移**：函数成功时，AVFrame 的所有权转移给调用者
-3. **引用计数**：FFmpeg 使用 AVBuffer API 进行引用计数，自动管理底层缓冲区
-
-### 当前实现的内存管理
-- `HwVideoDecoder::readNextFrame()` 调用 `av_frame_alloc()` 分配 AVFrame
-- `avcodec_receive_frame()` 填充解码数据并转移所有权
-- 调用者必须在使用完毕后调用 `av_frame_free(&frame.frame)` 释放内存
-- FFmpeg 的 AVBufferPool 自动管理 D3D11 纹理缓冲区的重用和回收
-
 ---
 
 ## 🔧 维护指南
@@ -124,21 +89,9 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测�
 
 ### 不能更新的内容
 
-不要更新"维护指南"这个章节
+不要更新"维护指南"这个章节，保持这个章节是文档最后一个部分。
+不能新增新的大章节。
 
 ### 更新原则：
 - 保持简洁，只记录与快速上手改代码相关的必要核心信息
 - 及时更新 README.md，避免文档过时
-
----
-
-## 📋 更新记录
-
-### 2024-07-12: 硬件解码器强制模式
-- **问题**：测试文件格式导致硬件解码测试失败，需要强制硬件解码
-- **解决方案**：
-  - 修正硬件解码器的像素格式检查逻辑
-  - 实现智能的格式协商机制，仅接受硬件格式
-  - **删除软件解码回退机制**：严格要求硬件解码
-  - 添加硬件解码器初始化验证测试
-- **结果**：硬件解码器严格模式正常工作，确认强制 D3D11VA 硬件解码功能

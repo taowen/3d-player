@@ -122,8 +122,25 @@ bool HwVideoDecoder::initializeFFmpegHWDecoder() {
     
     codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
     
+    // Create hardware frames context before opening codec
+    if (!createHWFramesContext()) {
+        std::cerr << "Failed to create hardware frames context" << std::endl;
+        return false;
+    }
+    
+    // Set the hardware frames context to codec context
+    codec_context_->hw_frames_ctx = av_buffer_ref(hw_frames_ctx_);
+    
     if (avcodec_open2(codec_context_, codec, nullptr) < 0) {
         std::cerr << "Failed to open codec" << std::endl;
+        return false;
+    }
+    
+    // Allocate hardware frame buffers after codec is opened
+    hw_frames_[0] = av_frame_alloc();
+    hw_frames_[1] = av_frame_alloc();
+    if (!hw_frames_[0] || !hw_frames_[1]) {
+        std::cerr << "Failed to allocate frames" << std::endl;
         return false;
     }
     
@@ -166,62 +183,15 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    // First try to receive a frame to get correct width and height
-    AVFrame* temp_frame = av_frame_alloc();
-    if (!temp_frame) {
-        std::cerr << "Failed to allocate temporary frame" << std::endl;
-        return false;
-    }
-    
-    ret = avcodec_receive_frame(codec_context_, temp_frame);
+    // Receive frame directly from hardware decoder
+    AVFrame* current_frame = hw_frames_[current_frame_index_];
+    ret = avcodec_receive_frame(codec_context_, current_frame);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-        av_frame_free(&temp_frame);
         return false;
     } else if (ret < 0) {
         std::cerr << "Error receiving frame from decoder: " << ret << std::endl;
-        av_frame_free(&temp_frame);
         return false;
     }
-    
-    // If hardware frames context hasn't been created yet, create it now
-    if (!hw_frames_ctx_) {
-        if (!createHWFramesContext()) {
-            std::cerr << "Failed to create hardware frames context" << std::endl;
-            av_frame_free(&temp_frame);
-            return false;
-        }
-        
-        // Allocate hardware frame buffers
-        hw_frames_[0] = av_frame_alloc();
-        hw_frames_[1] = av_frame_alloc();
-        if (!hw_frames_[0] || !hw_frames_[1]) {
-            std::cerr << "Failed to allocate frames" << std::endl;
-            av_frame_free(&temp_frame);
-            return false;
-        }
-        
-        // Get memory from hardware frames context
-        if (av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[0], 0) < 0 ||
-            av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[1], 0) < 0) {
-            std::cerr << "Failed to allocate hardware frame buffers" << std::endl;
-            av_frame_free(&temp_frame);
-            return false;
-        }
-    }
-    
-    // Now transfer frame data to hardware frame
-    AVFrame* current_frame = hw_frames_[current_frame_index_];
-    ret = av_hwframe_transfer_data(current_frame, temp_frame, 0);
-    if (ret < 0) {
-        std::cerr << "Failed to transfer frame to hardware: " << ret << std::endl;
-        av_frame_free(&temp_frame);
-        return false;
-    }
-    
-    // Copy frame properties
-    av_frame_copy_props(current_frame, temp_frame);
-    
-    av_frame_free(&temp_frame);
     
     return fillDecodedFrame(current_frame, frame);
 }

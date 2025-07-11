@@ -187,7 +187,7 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    if (current_frame->format != AV_PIX_FMT_D3D11) {
+    if (current_frame->format != AV_PIX_FMT_YUV444P) {
         std::cerr << "Frame is not hardware decoded (format: " << current_frame->format << ")" << std::endl;
         av_frame_free(&current_frame);
         return false;

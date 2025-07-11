@@ -18,13 +18,13 @@ extern "C" {
  * 特性：
  * - 必须使用硬件解码，无软件解码回退
  * - 支持 H.264 (h264_d3d11va)、HEVC (hevc_d3d11va)、AV1 (av1_d3d11va)
- * - 输出格式为 AV_PIX_FMT_D3D11 (DirectX 11纹理)
+ * - 输出格式为 AV_PIX_FMT_YUV444P (DirectX 11纹理)
  * - 使用 FFmpeg AVBufferPool 自动管理D3D11纹理缓冲区
  */
 class HwVideoDecoder {
 public:
     struct DecodedFrame {
-        AVFrame* frame;        // D3D11 硬件帧 (AV_PIX_FMT_D3D11)
+        AVFrame* frame;        // D3D11 硬件帧 (AV_PIX_FMT_YUV444P)
         bool is_valid;
     };
     

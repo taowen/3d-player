@@ -2,20 +2,25 @@
 alwaysApply: true
 ---
 
-# 3D Player - MKV Stream Reader
+# 3D Player - MKV Stream Reader & Hardware Video Decoder
 
 ## 文件结构
 ```
 src/
-├── mkv_stream_reader.h       # 头文件
-└── mkv_stream_reader.cpp     # 实现文件
+├── mkv_stream_reader.h       # MKV流读取器头文件
+├── mkv_stream_reader.cpp     # MKV流读取器实现
+├── hw_video_decoder.h        # 硬件视频解码器头文件
+└── hw_video_decoder.cpp      # 硬件视频解码器实现
 tests/
-└── test_mkv_stream_reader.cpp # 单元测试
+├── test_mkv_stream_reader.cpp # MKV流读取器测试
+└── test_hw_video_decoder.cpp  # 硬件视频解码器测试
 test_data/
 └── sample_hw.mkv             # 测试文件
 ```
 
 ## 核心API
+
+### MKVStreamReader
 ```cpp
 class MKVStreamReader {
 public:
@@ -32,6 +37,27 @@ public:
 };
 ```
 
+### HwVideoDecoder
+```cpp
+class HwVideoDecoder {
+public:
+    struct DecodedFrame {
+        AVFrame* frame;
+        bool is_valid;
+    };
+    
+    bool open(const std::string& filepath);
+    bool readNextFrame(DecodedFrame& frame);
+    bool isOpen() const;
+    bool isEOF() const;
+    void close();
+    
+    MKVStreamReader* getStreamReader() const;
+    ID3D11Device* getD3D11Device() const;
+    ID3D11DeviceContext* getD3D11Context() const;
+};
+```
+
 ## 构建测试
 ```bash
 build.bat                    # 构建项目
@@ -39,6 +65,8 @@ build\Debug\integration-test.exe  # 运行测试
 ```
 
 ## 使用示例
+
+### MKVStreamReader 使用
 ```cpp
 MKVStreamReader reader;
 if (reader.open("video.mkv")) {
@@ -56,6 +84,20 @@ if (reader.open("video.mkv")) {
 }
 ```
 
+### HwVideoDecoder 使用
+```cpp
+HwVideoDecoder decoder;
+if (decoder.open("video.mkv")) {
+    HwVideoDecoder::DecodedFrame frame;
+    while (decoder.readNextFrame(frame)) {
+        if (frame.is_valid) {
+            // 处理解码后的帧
+        }
+    }
+    decoder.close();
+}
+```
+
 ---
 
 ## 🔧 维护指南
@@ -66,10 +108,8 @@ if (reader.open("video.mkv")) {
 1. **文件结构** - 添加/删除文件时更新
 2. **核心API** - 修改公共接口时更新
 3. **构建测试** - 改变构建方式时更新
-4. **使用示例** - API变化时更新示例代码
 
 ### 更新原则：
-- 保持简洁，只记录核心信息
-- 及时更新，避免文档过时
-- 重要变更必须记录在"最近更改"中
+- 保持简洁，只记录与快速上手改代码相关的必要核心信息
+- 及时更新 README.md，避免文档过时
 - 运行测试后更新测试状态

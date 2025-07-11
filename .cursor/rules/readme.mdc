@@ -2,7 +2,7 @@
 alwaysApply: true
 ---
 
-# 3D Player - MKV Stream Reader & Hardware Video Decoder
+# 3D Player
 
 ## 文件结构
 ```
@@ -60,7 +60,7 @@ public:
 
 ## 构建测试
 ```bash
-build.bat                    # 构建项目
+build.bat test                  # 构建项目
 build\Debug\integration-test.exe  # 运行测试
 ```
 
@@ -108,6 +108,10 @@ if (decoder.open("video.mkv")) {
 1. **文件结构** - 添加/删除文件时更新
 2. **核心API** - 修改公共接口时更新
 3. **构建测试** - 改变构建方式时更新
+
+### 不能更新的内容
+
+不要更新“维护指南”这个章节
 
 ### 更新原则：
 - 保持简洁，只记录与快速上手改代码相关的必要核心信息

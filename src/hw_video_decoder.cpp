@@ -4,12 +4,7 @@
 HwVideoDecoder::HwVideoDecoder()
     : stream_reader_(std::make_unique<MKVStreamReader>())
     , codec_context_(nullptr)
-    , current_frame_index_(0)
-    , hw_device_ctx_(nullptr) {
-    hw_frames_[0] = nullptr;
-    hw_frames_[1] = nullptr;
-    frame_valid_[0] = false;
-    frame_valid_[1] = false;
+    , frame_(nullptr) {
 }
 
 HwVideoDecoder::~HwVideoDecoder() {
@@ -26,18 +21,11 @@ bool HwVideoDecoder::open(const std::string& filepath) {
         return false;
     }
     
-    if (!initializeFFmpegHWDecoder()) {
-        std::cerr << "Failed to initialize FFmpeg hardware decoder" << std::endl;
+    if (!initializeDecoder()) {
+        std::cerr << "Failed to initialize decoder" << std::endl;
         close();
         return false;
     }
-    
-    // Don't create hardware frames context here, create it on first decode
-    // because some codecs need to decode some frames before determining the real video size
-    
-    current_frame_index_ = 0;
-    frame_valid_[0] = false;
-    frame_valid_[1] = false;
     
     return true;
 }
@@ -92,21 +80,18 @@ MKVStreamReader* HwVideoDecoder::getStreamReader() const {
     return stream_reader_.get();
 }
 
-bool HwVideoDecoder::initializeFFmpegHWDecoder() {
+bool HwVideoDecoder::initializeDecoder() {
     AVCodecParameters* codecpar = stream_reader_->getVideoCodecParameters();
     if (!codecpar) {
         std::cerr << "No video codec parameters" << std::endl;
         return false;
     }
     
-    // Use generic software decoder, hardware acceleration will be enabled via hwaccel
     const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
     if (!codec) {
         std::cerr << "No decoder found for codec_id: " << codecpar->codec_id << std::endl;
         return false;
     }
-    
-    std::cerr << "Using decoder: " << codec->name << " with D3D11VA hardware acceleration" << std::endl;
     
     codec_context_ = avcodec_alloc_context3(codec);
     if (!codec_context_) {
@@ -119,88 +104,19 @@ bool HwVideoDecoder::initializeFFmpegHWDecoder() {
         return false;
     }
     
-    // MUST use DirectX 11 hardware acceleration - no fallbacks allowed
-    int ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);
-    if (ret < 0) {
-        std::cerr << "FATAL ERROR: Failed to create D3D11VA device context: " << ret << std::endl;
-        std::cerr << "DirectX 11 hardware acceleration is REQUIRED but not available!" << std::endl;
-        return false;
-    }
-    std::cerr << "Successfully created D3D11VA device context" << std::endl;
-    
-    codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
-    
-    // Enable D3D11VA hardware acceleration
-    bool hardware_config_found = false;
-    for (int i = 0; ; i++) {
-        const AVCodecHWConfig* config = avcodec_get_hw_config(codec, i);
-        if (!config) {
-            std::cerr << "No more hardware acceleration configs available" << std::endl;
-            break;
-        }
-        
-        std::cerr << "Hardware config " << i << ": device_type=" << config->device_type 
-                  << ", methods=" << config->methods 
-                  << ", pix_fmt=" << config->pix_fmt << std::endl;
-        
-        if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
-            config->device_type == AV_HWDEVICE_TYPE_D3D11VA) {
-            std::cerr << "Found D3D11VA hardware acceleration config with pix_fmt=" << config->pix_fmt << std::endl;
-            hardware_config_found = true;
-            codec_context_->get_format = [](AVCodecContext* ctx, const enum AVPixelFormat* pix_fmts) {
-                const enum AVPixelFormat* p;
-                
-                // Print available formats for debugging
-                std::cerr << "Available pixel formats: ";
-                for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
-                    std::cerr << *p << " ";
-                }
-                std::cerr << std::endl;
-                
-                // Use format 5 (YUV420P) as the actual working format based on testing
-                for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
-                    if (*p == 5) {  // YUV420P - the actual format that works
-                        std::cerr << "✓ Successfully selected format: " << *p << " (YUV420P)" << std::endl;
-                        return *p;
-                    }
-                }
-                
-                // Fallback to the first available format
-                if (*pix_fmts != AV_PIX_FMT_NONE) {
-                    std::cerr << "Using first available format: " << *pix_fmts << std::endl;
-                    return *pix_fmts;
-                }
-                
-                std::cerr << "ERROR: No pixel formats available!" << std::endl;
-                return AV_PIX_FMT_NONE;
-            };
-            break;
-        }
-    }
-    
-    if (!hardware_config_found) {
-        std::cerr << "FATAL ERROR: No D3D11VA hardware acceleration config found for this codec!" << std::endl;
-        std::cerr << "DirectX 11 hardware acceleration is REQUIRED but not supported by this codec." << std::endl;
-        return false;
-    }
-    
     if (avcodec_open2(codec_context_, codec, nullptr) < 0) {
         std::cerr << "Failed to open codec" << std::endl;
         return false;
     }
     
-    // Allocate frame buffers for double buffering
-    hw_frames_[0] = av_frame_alloc();
-    hw_frames_[1] = av_frame_alloc();
-    if (!hw_frames_[0] || !hw_frames_[1]) {
-        std::cerr << "Failed to allocate frames" << std::endl;
+    frame_ = av_frame_alloc();
+    if (!frame_) {
+        std::cerr << "Failed to allocate frame" << std::endl;
         return false;
     }
     
     return true;
 }
-
-
 
 bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
     int ret = avcodec_send_packet(codec_context_, packet);
@@ -209,17 +125,9 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    // Select the buffer to decode into
-    // For proper double buffering, we need to choose the buffer that won't 
-    // invalidate the most recently returned frame
-    int decode_buffer_index = selectDecodeBuffer();
+    av_frame_unref(frame_);
     
-    // Clear the frame before receiving new data
-    AVFrame* decode_frame = hw_frames_[decode_buffer_index];
-    av_frame_unref(decode_frame);
-    
-    // Receive frame from hardware decoder
-    ret = avcodec_receive_frame(codec_context_, decode_frame);
+    ret = avcodec_receive_frame(codec_context_, frame_);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
         return false;
     } else if (ret < 0) {
@@ -227,102 +135,20 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    // Debug: Print frame format
-    std::cerr << "Decoded frame format: " << decode_frame->format << std::endl;
-    
-    // Accept the actual decoded format (format 5 = YUV420P based on actual testing)
-    if (decode_frame->format == 5) {
-        std::cerr << "✅ SUCCESS: Using decoded format: " << decode_frame->format << " (YUV420P)" << std::endl;
-    } else {
-        std::cerr << "⚠️  WARNING: Expected format 5 but got: " << decode_frame->format << std::endl;
-        std::cerr << "Continuing anyway as decoding succeeded..." << std::endl;
-    }
-    
-    return fillDecodedFrame(decode_frame, frame, decode_buffer_index);
-}
-
-bool HwVideoDecoder::fillDecodedFrame(AVFrame* frame, DecodedFrame& decoded_frame, int buffer_index) {
-    decoded_frame.frame = frame;
-    decoded_frame.is_valid = true;
-    
-    // Mark this buffer as valid and update current frame index
-    frame_valid_[buffer_index] = true;
-    current_frame_index_ = buffer_index;
+    frame.frame = frame_;
+    frame.is_valid = true;
     
     return true;
 }
 
-int HwVideoDecoder::selectDecodeBuffer() {
-    // Double buffering strategy:
-    // - Keep the most recently returned frame valid
-    // - Use the other buffer for new decoding
-    
-    // If both buffers are valid, use the one that's not the current frame
-    if (frame_valid_[0] && frame_valid_[1]) {
-        return (current_frame_index_ == 0) ? 1 : 0;
-    }
-    
-    // If only one buffer is valid, use the other one
-    if (frame_valid_[0]) {
-        return 1;
-    }
-    if (frame_valid_[1]) {
-        return 0;
-    }
-    
-    // If neither buffer is valid, start with buffer 0
-    return 0;
-}
-
 void HwVideoDecoder::cleanup() {
-    // Clean up double buffer frames
-    for (int i = 0; i < 2; i++) {
-        if (hw_frames_[i]) {
-            av_frame_free(&hw_frames_[i]);
-            hw_frames_[i] = nullptr;
-        }
-        frame_valid_[i] = false;
+    if (frame_) {
+        av_frame_free(&frame_);
+        frame_ = nullptr;
     }
-    
-
     
     if (codec_context_) {
         avcodec_free_context(&codec_context_);
         codec_context_ = nullptr;
     }
-    
-    if (hw_device_ctx_) {
-        av_buffer_unref(&hw_device_ctx_);
-        hw_device_ctx_ = nullptr;
-    }
-    
-    current_frame_index_ = 0;
-}
-
-ID3D11Device* HwVideoDecoder::getD3D11Device() const {
-    if (!hw_device_ctx_) {
-        return nullptr;
-    }
-    
-    AVHWDeviceContext* device_ctx = (AVHWDeviceContext*)hw_device_ctx_->data;
-    if (device_ctx->type != AV_HWDEVICE_TYPE_D3D11VA) {
-        return nullptr;
-    }
-    
-    AVD3D11VADeviceContext* d3d11_ctx = (AVD3D11VADeviceContext*)device_ctx->hwctx;
-    return d3d11_ctx->device;
-}
-
-ID3D11DeviceContext* HwVideoDecoder::getD3D11Context() const {
-    if (!hw_device_ctx_) {
-        return nullptr;
-    }
-    
-    AVHWDeviceContext* device_ctx = (AVHWDeviceContext*)hw_device_ctx_->data;
-    if (device_ctx->type != AV_HWDEVICE_TYPE_D3D11VA) {
-        return nullptr;
-    }
-    
-    AVD3D11VADeviceContext* d3d11_ctx = (AVD3D11VADeviceContext*)device_ctx->hwctx;
-    return d3d11_ctx->device_context;
 }

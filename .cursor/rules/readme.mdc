@@ -54,8 +54,6 @@ public:
     void close();
     
     MKVStreamReader* getStreamReader() const;
-    ID3D11Device* getD3D11Device() const;
-    ID3D11DeviceContext* getD3D11Context() const;
 };
 ```
 

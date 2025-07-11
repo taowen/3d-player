@@ -1,42 +1,82 @@
-#pragma once
-
-#include <string>
-#include <memory>
-
-extern "C" {
-    #include <libavformat/avformat.h>
-    #include <libavcodec/avcodec.h>
-}
+#ifndef HW_VIDEO_DECODER_H
+#define HW_VIDEO_DECODER_H
 
 #include "mkv_stream_reader.h"
+#include <memory>
+#include <string>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/buffer.h>
+#include <libavutil/hwcontext.h>
+}
+
+/**
+ * @class HwVideoDecoder
+ * @brief DirectX 11 硬件视频解码器，使用 FFmpeg AVBufferPool 进行内存管理
+ * 
+ * 特性：
+ * - 必须使用硬件解码，无软件解码回退
+ * - 支持 H.264 (h264_d3d11va)、HEVC (hevc_d3d11va)、AV1 (av1_d3d11va)
+ * - 输出格式为 AV_PIX_FMT_D3D11 (DirectX 11纹理)
+ * - 使用 FFmpeg AVBufferPool 自动管理D3D11纹理缓冲区
+ */
 class HwVideoDecoder {
 public:
     struct DecodedFrame {
-        AVFrame* frame;
+        AVFrame* frame;        // D3D11 硬件帧 (AV_PIX_FMT_D3D11)
         bool is_valid;
-        
-        DecodedFrame() : frame(nullptr), is_valid(false) {}
     };
-
+    
     HwVideoDecoder();
     ~HwVideoDecoder();
-
+    
+    /**
+     * @brief 打开视频文件并初始化硬件解码器
+     * @param filepath 视频文件路径
+     * @return true 成功打开并初始化硬件解码器，false 打开失败
+     */
     bool open(const std::string& filepath);
+    
+    /**
+     * @brief 读取下一个解码帧 (使用 FFmpeg AVBufferPool 自动管理)
+     * @param frame 用于存储解码帧的结构体
+     * @return true 成功读取帧，false 读取失败或到达文件末尾
+     * @note 调用者负责在使用完毕后调用 av_frame_free(&frame.frame) 释放内存
+     */
     bool readNextFrame(DecodedFrame& frame);
     
+    /**
+     * @brief 检查解码器是否已打开
+     * @return true 解码器已打开，false 解码器未打开
+     */
     bool isOpen() const;
+    
+    /**
+     * @brief 检查是否到达文件末尾
+     * @return true 到达文件末尾，false 未到达文件末尾
+     */
     bool isEOF() const;
+    
+    /**
+     * @brief 关闭解码器并释放资源
+     */
     void close();
     
+    /**
+     * @brief 获取内部的流读取器实例
+     * @return MKVStreamReader* 流读取器指针，可能为 nullptr
+     */
     MKVStreamReader* getStreamReader() const;
-
+    
 private:
     std::unique_ptr<MKVStreamReader> stream_reader_;
     AVCodecContext* codec_context_;
-    AVFrame* frame_;
+    AVBufferRef* hw_device_ctx_;   // D3D11VA 硬件设备上下文
     
-    bool initializeDecoder();
+    bool initializeHardwareDecoder();
     bool processPacket(AVPacket* packet, DecodedFrame& frame);
     void cleanup();
 };
+
+#endif // HW_VIDEO_DECODER_H

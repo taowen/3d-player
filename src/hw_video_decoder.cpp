@@ -1,10 +1,18 @@
 #include "hw_video_decoder.h"
 #include <iostream>
 
+// Helper function for error string conversion on Windows
+inline std::string av_err2str_cpp(int errnum) {
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(errnum, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    return std::string(errbuf);
+}
+
 HwVideoDecoder::HwVideoDecoder()
     : stream_reader_(std::make_unique<MKVStreamReader>())
     , codec_context_(nullptr)
-    , frame_(nullptr) {
+    , hw_device_ctx_(nullptr) {
+    // FFmpeg automatically manages buffers, no manual initialization needed
 }
 
 HwVideoDecoder::~HwVideoDecoder() {
@@ -21,8 +29,8 @@ bool HwVideoDecoder::open(const std::string& filepath) {
         return false;
     }
     
-    if (!initializeDecoder()) {
-        std::cerr << "Failed to initialize decoder" << std::endl;
+    if (!initializeHardwareDecoder()) {
+        std::cerr << "Failed to initialize hardware decoder" << std::endl;
         close();
         return false;
     }
@@ -61,7 +69,7 @@ bool HwVideoDecoder::readNextFrame(DecodedFrame& frame) {
 }
 
 bool HwVideoDecoder::isOpen() const {
-    return stream_reader_->isOpen() && codec_context_ != nullptr;
+    return stream_reader_->isOpen() && codec_context_ != nullptr && hw_device_ctx_ != nullptr;
 }
 
 bool HwVideoDecoder::isEOF() const {
@@ -80,16 +88,55 @@ MKVStreamReader* HwVideoDecoder::getStreamReader() const {
     return stream_reader_.get();
 }
 
-bool HwVideoDecoder::initializeDecoder() {
+bool HwVideoDecoder::initializeHardwareDecoder() {
     AVCodecParameters* codecpar = stream_reader_->getVideoCodecParameters();
     if (!codecpar) {
         std::cerr << "No video codec parameters" << std::endl;
         return false;
     }
     
-    const AVCodec* codec = avcodec_find_decoder(codecpar->codec_id);
+    // Create D3D11VA hardware device context
+    int ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);
+    if (ret < 0) {
+        std::cerr << "Failed to create D3D11VA device context: " << av_err2str_cpp(ret) << std::endl;
+        return false;
+    }
+    
+    // Find D3D11VA hardware decoder dynamically
+    const AVCodec* codec = nullptr;
+    void* i = nullptr;
+    const AVCodec* c;
+    
+    // Iterate through all available codecs to find D3D11VA hardware decoder
+    while ((c = av_codec_iterate(&i))) {
+        // Check if this is a decoder with matching codec ID
+        if (!av_codec_is_decoder(c) || c->id != codecpar->codec_id) {
+            continue;
+        }
+        
+        // Check hardware configurations for D3D11VA support
+        for (int j = 0;; j++) {
+            const AVCodecHWConfig* config = avcodec_get_hw_config(c, j);
+            if (!config) {
+                break; // No more hardware configs for this codec
+            }
+            
+            // Check if this codec supports D3D11VA
+            if (config->device_type == AV_HWDEVICE_TYPE_D3D11VA) {
+                codec = c;
+                std::cerr << "Found D3D11VA decoder: " << codec->name << " for codec_id: " << codecpar->codec_id << std::endl;
+                break;
+            }
+        }
+        
+        if (codec) {
+            break; // Found D3D11VA decoder
+        }
+    }
+    
     if (!codec) {
-        std::cerr << "No decoder found for codec_id: " << codecpar->codec_id << std::endl;
+        std::cerr << "No D3D11VA decoder found for codec_id: " << codecpar->codec_id << std::endl;
+        std::cerr << "Make sure DirectX 11 hardware acceleration is available on your system" << std::endl;
         return false;
     }
     
@@ -99,19 +146,17 @@ bool HwVideoDecoder::initializeDecoder() {
         return false;
     }
     
+    // Copy codec parameters to context first
     if (avcodec_parameters_to_context(codec_context_, codecpar) < 0) {
         std::cerr << "Failed to copy codec parameters to context" << std::endl;
         return false;
     }
     
+    // Set hardware device context - FFmpeg will auto-create frames context and buffer pool
+    codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+    
     if (avcodec_open2(codec_context_, codec, nullptr) < 0) {
         std::cerr << "Failed to open codec" << std::endl;
-        return false;
-    }
-    
-    frame_ = av_frame_alloc();
-    if (!frame_) {
-        std::cerr << "Failed to allocate frame" << std::endl;
         return false;
     }
     
@@ -121,34 +166,47 @@ bool HwVideoDecoder::initializeDecoder() {
 bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
     int ret = avcodec_send_packet(codec_context_, packet);
     if (ret < 0) {
-        std::cerr << "Error sending packet to decoder: " << ret << std::endl;
+        std::cerr << "Error sending packet to decoder: " << av_err2str_cpp(ret) << std::endl;
         return false;
     }
     
-    av_frame_unref(frame_);
+    // Use FFmpeg automatically managed frame buffers
+    AVFrame* current_frame = av_frame_alloc();
+    if (!current_frame) {
+        std::cerr << "Failed to allocate frame" << std::endl;
+        return false;
+    }
     
-    ret = avcodec_receive_frame(codec_context_, frame_);
+    ret = avcodec_receive_frame(codec_context_, current_frame);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        av_frame_free(&current_frame);
         return false;
     } else if (ret < 0) {
-        std::cerr << "Error receiving frame from decoder: " << ret << std::endl;
+        std::cerr << "Error receiving frame from decoder: " << av_err2str_cpp(ret) << std::endl;
+        av_frame_free(&current_frame);
         return false;
     }
     
-    frame.frame = frame_;
+    if (current_frame->format != AV_PIX_FMT_D3D11) {
+        std::cerr << "Frame is not hardware decoded (format: " << current_frame->format << ")" << std::endl;
+        av_frame_free(&current_frame);
+        return false;
+    }
+    
+    frame.frame = current_frame;
     frame.is_valid = true;
     
     return true;
 }
 
 void HwVideoDecoder::cleanup() {
-    if (frame_) {
-        av_frame_free(&frame_);
-        frame_ = nullptr;
-    }
-    
     if (codec_context_) {
         avcodec_free_context(&codec_context_);
         codec_context_ = nullptr;
+    }
+    
+    if (hw_device_ctx_) {
+        av_buffer_unref(&hw_device_ctx_);
+        hw_device_ctx_ = nullptr;
     }
 }

@@ -47,13 +47,13 @@ private:
     AVCodecContext* codec_context_;
     AVFrame* hw_frames_[2];  // Double buffer frame array
     int current_frame_index_;  // Current frame index (0 or 1)
+    bool frame_valid_[2];     // Track which frames contain valid data
     
     AVBufferRef* hw_device_ctx_;
-    AVBufferRef* hw_frames_ctx_;  // Hardware frames context for VRAM pool management
     
     bool initializeFFmpegHWDecoder();
-    bool createHWFramesContext();  // Create hardware frames context and VRAM pool
     bool processPacket(AVPacket* packet, DecodedFrame& frame);
-    bool fillDecodedFrame(AVFrame* frame, DecodedFrame& decoded_frame);
+    bool fillDecodedFrame(AVFrame* frame, DecodedFrame& decoded_frame, int buffer_index);
+    int selectDecodeBuffer();  // Select which buffer to decode into for proper double buffering
     void cleanup();
 };

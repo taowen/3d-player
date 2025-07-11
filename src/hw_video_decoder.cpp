@@ -1,6 +1,12 @@
 #include "hw_video_decoder.h"
 #include <iostream>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/pixfmt.h>
+#include <libavutil/pixdesc.h>
+}
+
 // Helper function for error string conversion on Windows
 inline std::string av_err2str_cpp(int errnum) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
@@ -173,8 +179,29 @@ bool HwVideoDecoder::initializeHardwareDecoder() {
     // Set hardware device context - FFmpeg will auto-create frames context and buffer pool
     codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
     
-    // 设置硬件解码的输出格式
-    codec_context_->pix_fmt = AV_PIX_FMT_D3D11;
+    // 设置硬件解码的格式回调函数，只允许硬件解码
+    codec_context_->get_format = [](AVCodecContext* /*ctx*/, const enum AVPixelFormat* pix_fmts) -> enum AVPixelFormat {
+        const enum AVPixelFormat* p;
+        
+        // 首选 D3D11 格式
+        for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+            if (*p == AV_PIX_FMT_D3D11) {
+                return *p;
+            }
+        }
+        
+        // 如果没有 D3D11，尝试其他硬件格式
+        for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+            if (*p == AV_PIX_FMT_D3D11VA_VLD || *p == AV_PIX_FMT_DXVA2_VLD || 
+                *p == AV_PIX_FMT_CUDA || *p == AV_PIX_FMT_VULKAN) {
+                return *p;
+            }
+        }
+        
+        // 如果没有硬件格式，返回 NONE 表示失败
+        std::cerr << "No hardware pixel format available, hardware decoding required" << std::endl;
+        return AV_PIX_FMT_NONE;
+    };
     
     if (avcodec_open2(codec_context_, codec, nullptr) < 0) {
         std::cerr << "Failed to open codec" << std::endl;
@@ -208,8 +235,15 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    if (current_frame->format != AV_PIX_FMT_D3D11) {
-        std::cerr << "Frame is not hardware decoded (format: " << current_frame->format << ")" << std::endl;
+    // 检查是否是硬件解码格式，只允许硬件解码
+    bool is_hardware_format = (current_frame->format == AV_PIX_FMT_D3D11 ||
+                               current_frame->format == AV_PIX_FMT_D3D11VA_VLD ||
+                               current_frame->format == AV_PIX_FMT_DXVA2_VLD ||
+                               current_frame->format == AV_PIX_FMT_CUDA ||
+                               current_frame->format == AV_PIX_FMT_VULKAN);
+    
+    if (!is_hardware_format) {
+        std::cerr << "Frame is not hardware decoded (format: " << current_frame->format << "), hardware decoding required" << std::endl;
         av_frame_free(&current_frame);
         return false;
     }

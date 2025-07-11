@@ -9,6 +9,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Set AddressSanitizer globally before fetching Catch2
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
+
 # Fetch Catch2 for testing
 include(FetchContent)
 FetchContent_Declare(
@@ -35,6 +39,8 @@ target_link_libraries(integration-test PRIVATE Catch2::Catch2WithMain)
 # Apply Windows/MSVC compile options
 target_compile_options(integration-test PRIVATE
     /W4 /WX- /permissive- /std:c++latest
+    /Zi                 # Generate debug info for better error reports
+    /utf-8              # Use UTF-8 encoding for source files
 )
 
 # Set Visual Studio startup project

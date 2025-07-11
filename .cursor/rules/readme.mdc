@@ -6,6 +6,8 @@ alwaysApply: true
 
 ## 调研非常重要
 
+在开始改代码之前必须调研清楚
+
 1. 主要是依赖 ffmpeg。可以使用 deepwiki 查不熟悉的接口。
 2. 先调研清楚当前任务的外部依赖，以及所有涉及的上下游文件
 3. 确认测试存在和测试逻辑的合理性
@@ -68,6 +70,10 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测�
 - **测试运行目录**：测试程序在项目根目录 (`3d-player/`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
 - **测试文件**：`test_data/sample_hw.mkv` 从项目根目录访问
+
+⚠️ **重要：Git Bash 路径问题**
+- Git Bash 使用 Linux 风格路径分隔符 `/`，不认识 Windows 的 `\`
+- 避免路径解析错误：`C:\path\to\file` vs `C:/path/to/file`
 
 ## 内存管理说明
 

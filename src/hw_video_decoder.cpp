@@ -173,6 +173,9 @@ bool HwVideoDecoder::initializeHardwareDecoder() {
     // Set hardware device context - FFmpeg will auto-create frames context and buffer pool
     codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
     
+    // 设置硬件解码的输出格式
+    codec_context_->pix_fmt = AV_PIX_FMT_D3D11;
+    
     if (avcodec_open2(codec_context_, codec, nullptr) < 0) {
         std::cerr << "Failed to open codec" << std::endl;
         return false;
@@ -205,7 +208,7 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    if (current_frame->format != AV_PIX_FMT_YUV444P) {
+    if (current_frame->format != AV_PIX_FMT_D3D11) {
         std::cerr << "Frame is not hardware decoded (format: " << current_frame->format << ")" << std::endl;
         av_frame_free(&current_frame);
         return false;

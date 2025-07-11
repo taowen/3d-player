@@ -5,10 +5,16 @@
 #include <memory>
 #include <string>
 
+// Include D3D11 headers before FFmpeg headers
+#define WIN32_LEAN_AND_MEAN
+#include <d3d11.h>
+#include <wrl/client.h>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/buffer.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/hwcontext_d3d11va.h>
 }
 
 /**
@@ -68,6 +74,18 @@ public:
      * @return MKVStreamReader* 流读取器指针，可能为 nullptr
      */
     MKVStreamReader* getStreamReader() const;
+    
+    /**
+     * @brief 获取 D3D11 设备接口
+     * @return ID3D11Device* D3D11设备指针，可能为 nullptr
+     */
+    ID3D11Device* getD3D11Device() const;
+    
+    /**
+     * @brief 获取 D3D11 设备上下文接口
+     * @return ID3D11DeviceContext* D3D11设备上下文指针，可能为 nullptr
+     */
+    ID3D11DeviceContext* getD3D11DeviceContext() const;
     
 private:
     std::unique_ptr<MKVStreamReader> stream_reader_;

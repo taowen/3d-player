@@ -88,6 +88,24 @@ MKVStreamReader* HwVideoDecoder::getStreamReader() const {
     return stream_reader_.get();
 }
 
+ID3D11Device* HwVideoDecoder::getD3D11Device() const {
+    if (!hw_device_ctx_) {
+        return nullptr;
+    }
+    
+    AVD3D11VADeviceContext* d3d11_ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)hw_device_ctx_->data)->hwctx;
+    return d3d11_ctx->device;
+}
+
+ID3D11DeviceContext* HwVideoDecoder::getD3D11DeviceContext() const {
+    if (!hw_device_ctx_) {
+        return nullptr;
+    }
+    
+    AVD3D11VADeviceContext* d3d11_ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)hw_device_ctx_->data)->hwctx;
+    return d3d11_ctx->device_context;
+}
+
 bool HwVideoDecoder::initializeHardwareDecoder() {
     AVCodecParameters* codecpar = stream_reader_->getVideoCodecParameters();
     if (!codecpar) {

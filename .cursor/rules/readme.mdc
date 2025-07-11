@@ -4,16 +4,28 @@ alwaysApply: true
 
 # 3D Player
 
+## 调研非常重要
+
+1. 主要是依赖 ffmpeg。可以使用 deepwiki 查不熟悉的接口。
+2. 先调研清楚当前任务的外部依赖，以及所有涉及的上下游文件
+3. 确认测试存在和测试逻辑的合理性
+4. 写实现
+5. 让测试通过
+6. 把代码的改动同步到 README.md 方便新人快速上手
+
 ## 文件结构
 ```
 src/
 ├── mkv_stream_reader.h       # MKV流读取器头文件
 ├── mkv_stream_reader.cpp     # MKV流读取器实现
 ├── hw_video_decoder.h        # DirectX 11硬件视频解码器头文件
-└── hw_video_decoder.cpp      # DirectX 11硬件视频解码器实现
+├── hw_video_decoder.cpp      # DirectX 11硬件视频解码器实现
+├── rgb_video_decoder.h       # RGB视频解码器头文件
+└── rgb_video_decoder.cpp     # RGB视频解码器实现
 tests/
 ├── test_mkv_stream_reader.cpp # MKV流读取器测试
-└── test_hw_video_decoder.cpp  # 硬件视频解码器测试
+├── test_hw_video_decoder.cpp  # 硬件视频解码器测试
+└── test_rgb_video_decoder.cpp # RGB视频解码器测试
 test_data/
 └── sample_hw.mkv             # 测试文件
 build.ps1                     # PowerShell构建脚本
@@ -27,12 +39,16 @@ MKV文件流读取器，提供 Pull-style 接口，支持视频和音频流的�
 ### HwVideoDecoder  
 DirectX 11 硬件视频解码器，使用 FFmpeg AVBufferPool 进行内存管理。详细接口请参考 `src/hw_video_decoder.h`。
 
+### RgbVideoDecoder
+RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部构造 HwVideoDecoder，使用 VideoProcessorBlt 将 YUV 格式转换为 RGB D3D11 纹理。详细接口请参考 `src/rgb_video_decoder.h`。
+
 ## 硬件解码特性
 
 ### DirectX 11 硬件加速
 - **必须使用硬件解码**：无软件解码回退，确保GPU加速
 - **支持编解码器**：H.264 (h264_d3d11va)、HEVC (hevc_d3d11va)、AV1 (av1_d3d11va)
 - **输出格式**：AV_PIX_FMT_YUV444P (DirectX 11纹理)
+- **RGB 转换**：使用 VideoProcessorBlt 将 YUV 转换为 RGB D3D11 纹理
 
 ### FFmpeg AVBufferPool 缓冲管理
 - **自动内存管理**：使用 FFmpeg 内置的 AVBufferPool 系统
@@ -48,6 +64,10 @@ DirectX 11 硬件视频解码器，使用 FFmpeg AVBufferPool 进行内存管理
 ```bash
 powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测试
 ```
+
+- **测试运行目录**：测试程序在项目根目录 (`3d-player/`) 运行
+- **文件路径**：测试中所有相对路径都是相对于项目根目录的
+- **测试文件**：`test_data/sample_hw.mkv` 从项目根目录访问
 
 ## 内存管理说明
 

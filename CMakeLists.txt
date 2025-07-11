@@ -23,8 +23,10 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(integration-test 
     src/mkv_stream_reader.cpp
     src/hw_video_decoder.cpp
+    src/rgb_video_decoder.cpp
     tests/test_mkv_stream_reader.cpp
     tests/test_hw_video_decoder.cpp
+    tests/test_rgb_video_decoder.cpp
 )
 
 # Link Catch2 to the executable

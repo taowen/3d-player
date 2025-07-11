@@ -1,0 +1,75 @@
+---
+alwaysApply: true
+---
+
+# 3D Player - MKV Stream Reader
+
+## 文件结构
+```
+src/
+├── mkv_stream_reader.h       # 头文件
+└── mkv_stream_reader.cpp     # 实现文件
+tests/
+└── test_mkv_stream_reader.cpp # 单元测试
+test_data/
+└── sample_hw.mkv             # 测试文件
+```
+
+## 核心API
+```cpp
+class MKVStreamReader {
+public:
+    bool open(const std::string& filepath);
+    StreamInfo getStreamInfo() const;
+    bool readNextPacket(AVPacket* packet);
+    bool isVideoPacket(const AVPacket* packet) const;
+    bool isAudioPacket(const AVPacket* packet) const;
+    bool isOpen() const;
+    bool isEOF() const;
+    AVCodecParameters* getVideoCodecParameters() const;
+    AVCodecParameters* getAudioCodecParameters() const;
+    void close();
+};
+```
+
+## 构建测试
+```bash
+build.bat                    # 构建项目
+build\Debug\integration-test.exe  # 运行测试
+```
+
+## 使用示例
+```cpp
+MKVStreamReader reader;
+if (reader.open("video.mkv")) {
+    AVPacket* packet = av_packet_alloc();
+    while (reader.readNextPacket(packet)) {
+        if (reader.isVideoPacket(packet)) {
+            // 处理视频包
+        } else if (reader.isAudioPacket(packet)) {
+            // 处理音频包
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    reader.close();
+}
+```
+
+---
+
+## 🔧 维护指南
+
+**⚠️ 重要：每次修改代码后都要更新 README.md**
+
+### 需要更新的内容：
+1. **文件结构** - 添加/删除文件时更新
+2. **核心API** - 修改公共接口时更新
+3. **构建测试** - 改变构建方式时更新
+4. **使用示例** - API变化时更新示例代码
+
+### 更新原则：
+- 保持简洁，只记录核心信息
+- 及时更新，避免文档过时
+- 重要变更必须记录在"最近更改"中
+- 运行测试后更新测试状态

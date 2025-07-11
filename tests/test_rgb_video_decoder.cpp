@@ -1,116 +1,67 @@
+#include <catch2/catch_test_macros.hpp>
 #include "../src/rgb_video_decoder.h"
+#include <fstream>
 #include <iostream>
 #include <string>
-#include <cassert>
 
-void test_rgb_video_decoder_basic() {
-    std::cout << "Testing RgbVideoDecoder basic functionality..." << std::endl;
-    
+const std::string TEST_FILE = "test_data/sample_hw.mkv";
+
+TEST_CASE("RgbVideoDecoder basic functionality", "[rgb_video_decoder]") {
     RgbVideoDecoder decoder;
-    
-    // 测试文件不存在的情况
-    assert(!decoder.open("nonexistent_file.mkv"));
-    assert(!decoder.isOpen());
-    
-    // 测试打开测试文件
-    std::string test_file = "test_data/sample_hw.mkv";
-    bool opened = decoder.open(test_file);
-    
-    if (!opened) {
-        std::cerr << "Warning: Could not open test file: " << test_file << std::endl;
-        std::cerr << "This may be expected if test file doesn't exist or hardware decoder is not available." << std::endl;
-        return;
+
+    SECTION("Open non-existent file should fail") {
+        REQUIRE_FALSE(decoder.open("nonexistent_file.mkv"));
+        REQUIRE_FALSE(decoder.isOpen());
     }
-    
-    assert(decoder.isOpen());
-    assert(!decoder.isEOF());
-    
-    std::cout << "Video dimensions: " << decoder.getWidth() << "x" << decoder.getHeight() << std::endl;
-    
-    // 测试读取帧
-    RgbVideoDecoder::DecodedRgbFrame frame;
-    int frame_count = 0;
-    int max_frames = 10; // 限制测试帧数
-    
-    while (decoder.readNextFrame(frame) && frame_count < max_frames) {
-        assert(frame.is_valid);
-        assert(frame.hw_frame.frame != nullptr);
-        assert(frame.rgb_texture != nullptr);
-        
-        std::cout << "Successfully decoded frame " << frame_count + 1 << std::endl;
-        
-        // 释放 FFmpeg 帧内存
-        av_frame_free(&frame.hw_frame.frame);
-        
-        frame_count++;
+
+    SECTION("Open valid test file and decode frames") {
+        std::ifstream file(TEST_FILE);
+        if (!file.good()) {
+            SKIP("Test file " << TEST_FILE << " not found");
+        }
+        REQUIRE(decoder.open(TEST_FILE));
+        REQUIRE(decoder.isOpen());
+        REQUIRE_FALSE(decoder.isEOF());
+
+        RgbVideoDecoder::DecodedRgbFrame frame;
+        int frame_count = 0;
+        int max_frames = 10;
+        while (decoder.readNextFrame(frame) && frame_count < max_frames) {
+            REQUIRE(frame.is_valid);
+            REQUIRE(frame.hw_frame.frame != nullptr);
+            REQUIRE(frame.rgb_texture != nullptr);
+            av_frame_free(&frame.hw_frame.frame);
+            frame_count++;
+        }
+        REQUIRE(frame_count > 0);
+        decoder.close();
+        REQUIRE_FALSE(decoder.isOpen());
     }
-    
-    std::cout << "Total frames processed: " << frame_count << std::endl;
-    
-    // 关闭解码器
-    decoder.close();
-    assert(!decoder.isOpen());
-    
-    std::cout << "RgbVideoDecoder basic functionality test passed!" << std::endl;
 }
 
-void test_rgb_video_decoder_hw_access() {
-    std::cout << "Testing RgbVideoDecoder hardware decoder access..." << std::endl;
-    
+TEST_CASE("RgbVideoDecoder hardware decoder access", "[rgb_video_decoder]") {
     RgbVideoDecoder decoder;
-    
-    // 测试获取硬件解码器
     HwVideoDecoder* hw_decoder = decoder.getHwDecoder();
-    assert(hw_decoder != nullptr);
-    
-    std::string test_file = "test_data/sample_hw.mkv";
-    if (!decoder.open(test_file)) {
-        std::cerr << "Warning: Could not open test file for hardware access test" << std::endl;
-        return;
+    REQUIRE(hw_decoder != nullptr);
+
+    std::ifstream file(TEST_FILE);
+    if (!file.good()) {
+        SKIP("Test file " << TEST_FILE << " not found");
     }
-    
-    // 测试硬件解码器访问
-    assert(hw_decoder->isOpen());
-    assert(hw_decoder->getStreamReader() != nullptr);
-    
+    REQUIRE(decoder.open(TEST_FILE));
+    REQUIRE(hw_decoder->isOpen());
+    REQUIRE(hw_decoder->getStreamReader() != nullptr);
     decoder.close();
-    
-    std::cout << "RgbVideoDecoder hardware decoder access test passed!" << std::endl;
 }
 
-void test_rgb_video_decoder_error_handling() {
-    std::cout << "Testing RgbVideoDecoder error handling..." << std::endl;
-    
+TEST_CASE("RgbVideoDecoder error handling", "[rgb_video_decoder]") {
     RgbVideoDecoder decoder;
-    
-    // 测试未打开时的操作
     RgbVideoDecoder::DecodedRgbFrame frame;
-    assert(!decoder.readNextFrame(frame));
-    assert(!decoder.isOpen());
-    assert(!decoder.isEOF());
-    assert(decoder.getWidth() == 0);
-    assert(decoder.getHeight() == 0);
-    
-    // 测试多次关闭
+    REQUIRE_FALSE(decoder.readNextFrame(frame));
+    REQUIRE_FALSE(decoder.isOpen());
+    REQUIRE_FALSE(decoder.isEOF());
+    REQUIRE(decoder.getWidth() == 0);
+    REQUIRE(decoder.getHeight() == 0);
     decoder.close();
-    decoder.close(); // 应该安全
-    
-    std::cout << "RgbVideoDecoder error handling test passed!" << std::endl;
-}
-
-int main() {
-    try {
-        test_rgb_video_decoder_basic();
-        test_rgb_video_decoder_hw_access();
-        test_rgb_video_decoder_error_handling();
-        
-        std::cout << "All RgbVideoDecoder tests passed!" << std::endl;
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
-        return 1;
-    }
+    decoder.close(); // Should be safe
 } 

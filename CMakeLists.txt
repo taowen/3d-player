@@ -51,13 +51,3 @@ target_link_libraries(integration-test PRIVATE
 include(cmake/FindFFmpeg.cmake)
 target_link_ffmpeg(integration-test)
 copy_ffmpeg_dlls(integration-test)
-
-# Link CUDA to target (runtime only, no nvcc compilation)
-include(cmake/FindCUDA.cmake)
-target_link_cuda(integration-test)
-copy_cuda_dlls(integration-test)
-
-# Link TensorRT to target
-include(cmake/FindTensorRT.cmake)
-target_link_tensorrt(integration-test)
-copy_tensorrt_dlls(integration-test)

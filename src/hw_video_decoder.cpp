@@ -31,28 +31,8 @@ bool HwVideoDecoder::open(const std::string& filepath) {
         return false;
     }
     
-    if (!createHWFramesContext()) {
-        std::cerr << "Failed to create hardware frames context" << std::endl;
-        close();
-        return false;
-    }
-    
-    // From video memory pool allocate double-buffered frames
-    hw_frames_[0] = av_frame_alloc();
-    hw_frames_[1] = av_frame_alloc();
-    if (!hw_frames_[0] || !hw_frames_[1]) {
-        std::cerr << "Failed to allocate frames" << std::endl;
-        close();
-        return false;
-    }
-    
-    // Get memory from hardware frames context
-    if (av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[0], 0) < 0 ||
-        av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[1], 0) < 0) {
-        std::cerr << "Failed to allocate hardware frame buffers" << std::endl;
-        close();
-        return false;
-    }
+    // Don't create hardware frames context here, create it on first decode
+    // because some codecs need to decode some frames before determining the real video size
     
     current_frame_index_ = 0;
     
@@ -155,7 +135,7 @@ bool HwVideoDecoder::createHWFramesContext() {
         return false;
     }
     
-    // 创建硬件帧上下文
+    // Create hardware frames context
     hw_frames_ctx_ = av_hwframe_ctx_alloc(hw_device_ctx_);
     if (!hw_frames_ctx_) {
         std::cerr << "Failed to allocate hardware frames context" << std::endl;
@@ -164,10 +144,10 @@ bool HwVideoDecoder::createHWFramesContext() {
     
     AVHWFramesContext* frames_ctx = (AVHWFramesContext*)hw_frames_ctx_->data;
     frames_ctx->format = AV_PIX_FMT_D3D11;
-    frames_ctx->sw_format = AV_PIX_FMT_NV12;  // 常见的硬件解码格式
+    frames_ctx->sw_format = AV_PIX_FMT_NV12;  // Common hardware decode format
     frames_ctx->width = codec_context_->width;
     frames_ctx->height = codec_context_->height;
-    frames_ctx->initial_pool_size = 2;  // 双缓冲，只需要2个frame
+    frames_ctx->initial_pool_size = 2;  // Double buffer, only need 2 frames
     
     int ret = av_hwframe_ctx_init(hw_frames_ctx_);
     if (ret < 0) {
@@ -179,7 +159,6 @@ bool HwVideoDecoder::createHWFramesContext() {
     return true;
 }
 
-
 bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
     int ret = avcodec_send_packet(codec_context_, packet);
     if (ret < 0) {
@@ -187,15 +166,62 @@ bool HwVideoDecoder::processPacket(AVPacket* packet, DecodedFrame& frame) {
         return false;
     }
     
-    // 直接解码到当前双缓冲frame
-    AVFrame* current_frame = hw_frames_[current_frame_index_];
-    ret = avcodec_receive_frame(codec_context_, current_frame);
+    // First try to receive a frame to get correct width and height
+    AVFrame* temp_frame = av_frame_alloc();
+    if (!temp_frame) {
+        std::cerr << "Failed to allocate temporary frame" << std::endl;
+        return false;
+    }
+    
+    ret = avcodec_receive_frame(codec_context_, temp_frame);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        av_frame_free(&temp_frame);
         return false;
     } else if (ret < 0) {
         std::cerr << "Error receiving frame from decoder: " << ret << std::endl;
+        av_frame_free(&temp_frame);
         return false;
     }
+    
+    // If hardware frames context hasn't been created yet, create it now
+    if (!hw_frames_ctx_) {
+        if (!createHWFramesContext()) {
+            std::cerr << "Failed to create hardware frames context" << std::endl;
+            av_frame_free(&temp_frame);
+            return false;
+        }
+        
+        // Allocate hardware frame buffers
+        hw_frames_[0] = av_frame_alloc();
+        hw_frames_[1] = av_frame_alloc();
+        if (!hw_frames_[0] || !hw_frames_[1]) {
+            std::cerr << "Failed to allocate frames" << std::endl;
+            av_frame_free(&temp_frame);
+            return false;
+        }
+        
+        // Get memory from hardware frames context
+        if (av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[0], 0) < 0 ||
+            av_hwframe_get_buffer(hw_frames_ctx_, hw_frames_[1], 0) < 0) {
+            std::cerr << "Failed to allocate hardware frame buffers" << std::endl;
+            av_frame_free(&temp_frame);
+            return false;
+        }
+    }
+    
+    // Now transfer frame data to hardware frame
+    AVFrame* current_frame = hw_frames_[current_frame_index_];
+    ret = av_hwframe_transfer_data(current_frame, temp_frame, 0);
+    if (ret < 0) {
+        std::cerr << "Failed to transfer frame to hardware: " << ret << std::endl;
+        av_frame_free(&temp_frame);
+        return false;
+    }
+    
+    // Copy frame properties
+    av_frame_copy_props(current_frame, temp_frame);
+    
+    av_frame_free(&temp_frame);
     
     return fillDecodedFrame(current_frame, frame);
 }
@@ -204,14 +230,14 @@ bool HwVideoDecoder::fillDecodedFrame(AVFrame* frame, DecodedFrame& decoded_fram
     decoded_frame.frame = frame;
     decoded_frame.is_valid = true;
     
-    // 轮换到下一个frame - 实现双缓冲
+    // Rotate to next frame - implement double buffering
     current_frame_index_ = (current_frame_index_ + 1) % 2;
     
     return true;
 }
 
 void HwVideoDecoder::cleanup() {
-    // 清理双缓冲frames
+    // Clean up double buffer frames
     for (int i = 0; i < 2; i++) {
         if (hw_frames_[i]) {
             av_frame_free(&hw_frames_[i]);

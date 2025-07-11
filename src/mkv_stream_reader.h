@@ -32,16 +32,16 @@ public:
     bool open(const std::string& filepath);
     StreamInfo getStreamInfo() const;
     
-    // 包迭代器 - pull模式
+    // Packet iterator - pull mode
     bool readNextPacket(AVPacket* packet);
     bool isVideoPacket(const AVPacket* packet) const;
     bool isAudioPacket(const AVPacket* packet) const;
     
-    // 状态查询
+    // Status queries
     bool isOpen() const;
     bool isEOF() const;
     
-    // 获取编解码器参数（用于解码器初始化）
+    // Get codec parameters (for decoder initialization)
     AVCodecParameters* getVideoCodecParameters() const;
     AVCodecParameters* getAudioCodecParameters() const;
     

@@ -45,14 +45,14 @@ private:
     std::unique_ptr<MKVStreamReader> stream_reader_;
     
     AVCodecContext* codec_context_;
-    AVFrame* hw_frames_[2];  // 双缓冲frame数组
-    int current_frame_index_;  // 当前使用的frame索引 (0或1)
+    AVFrame* hw_frames_[2];  // Double buffer frame array
+    int current_frame_index_;  // Current frame index (0 or 1)
     
     AVBufferRef* hw_device_ctx_;
-    AVBufferRef* hw_frames_ctx_;  // 硬件帧上下文，用于显存池管理
+    AVBufferRef* hw_frames_ctx_;  // Hardware frames context for VRAM pool management
     
     bool initializeFFmpegHWDecoder();
-    bool createHWFramesContext();  // 创建硬件帧上下文和显存池
+    bool createHWFramesContext();  // Create hardware frames context and VRAM pool
     bool processPacket(AVPacket* packet, DecodedFrame& frame);
     bool fillDecodedFrame(AVFrame* frame, DecodedFrame& decoded_frame);
     void cleanup();

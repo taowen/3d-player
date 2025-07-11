@@ -68,22 +68,6 @@ public:
 powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测试
 ```
 
-### 测试状态 ✅
-**最后更新：2024-12-19**
-
-所有测试通过！共11个测试用例，102个断言全部成功：
-- MKVStreamReader: 7个测试用例全部通过
-- HwVideoDecoder: 4个测试用例全部通过
-
-测试覆盖：
-- 文件打开/关闭
-- 流信息解析
-- 数据包读取
-- 硬件解码
-- GPU内存管理
-- D3D11设备访问
-- 错误处理
-
 ## 使用示例
 
 ### MKVStreamReader 使用
@@ -136,4 +120,3 @@ if (decoder.open("video.mkv")) {
 ### 更新原则：
 - 保持简洁，只记录与快速上手改代码相关的必要核心信息
 - 及时更新 README.md，避免文档过时
-- 运行测试后更新测试状态

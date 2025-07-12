@@ -1,5 +1,4 @@
-#ifndef RGB_VIDEO_DECODER_H
-#define RGB_VIDEO_DECODER_H
+#pragma once
 
 #include "hw_video_decoder.h"
 #include <memory>
@@ -122,5 +121,3 @@ private:
     void clearInputViewCache();
     void cleanup();
 };
-
-#endif // RGB_VIDEO_DECODER_H 

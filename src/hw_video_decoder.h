@@ -1,5 +1,4 @@
-#ifndef HW_VIDEO_DECODER_H
-#define HW_VIDEO_DECODER_H
+#pragma once
 
 #include "mkv_stream_reader.h"
 #include <memory>
@@ -96,5 +95,3 @@ private:
     bool processPacket(AVPacket* packet, DecodedFrame& frame);
     void cleanup();
 };
-
-#endif // HW_VIDEO_DECODER_H

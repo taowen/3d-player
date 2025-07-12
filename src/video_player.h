@@ -113,6 +113,14 @@ private:
     // 线程安全
     mutable std::mutex frame_mutex_;
     
+    // 渲染管线资源
+    ComPtr<ID3D11VertexShader> fullscreen_vs_;
+    ComPtr<ID3D11PixelShader> fullscreen_ps_;
+    ComPtr<ID3D11SamplerState> texture_sampler_;
+    ComPtr<ID3D11BlendState> blend_state_;
+    ComPtr<ID3D11RasterizerState> raster_state_;
+    ComPtr<ID3D11ShaderResourceView> current_texture_srv_;
+    
     // 私有方法
     
     
@@ -147,6 +155,22 @@ private:
     bool initializeRenderTarget(ComPtr<IDXGISwapChain> swap_chain);
     
     
+    /**
+     * @brief 初始化渲染管线资源
+     * @param device D3D11 设备
+     * @return true 成功初始化，false 初始化失败
+     */
+    bool initializeRenderPipeline(ID3D11Device* device);
+
+
+    /**
+     * @brief 为纹理创建 Shader Resource View
+     * @param texture 源纹理
+     * @return ComPtr<ID3D11ShaderResourceView> 创建的 SRV
+     */
+    ComPtr<ID3D11ShaderResourceView> createTextureShaderResourceView(ComPtr<ID3D11Texture2D> texture);
+
+
     /**
      * @brief 执行渲染操作
      * @param source_texture 源纹理

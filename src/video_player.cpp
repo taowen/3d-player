@@ -1,6 +1,9 @@
 #include "video_player.h"
 #include <iostream>
 #include <chrono>
+#include <d3dcompiler.h>
+#include <fstream>
+#include <vector>
 
 extern "C" {
 #include <libavutil/rational.h>
@@ -343,28 +346,248 @@ void VideoPlayer::renderFrame(ComPtr<ID3D11Texture2D> source_texture) {
         return;
     }
     
-    // 根据渲染目标类型选择不同的渲染方式
+    // 确保渲染管线已初始化
+    if (!fullscreen_vs_ || !fullscreen_ps_) {
+        ID3D11Device* device = hw_decoder->getD3D11Device();
+        if (!device || !initializeRenderPipeline(device)) {
+            std::cerr << "Failed to initialize render pipeline" << std::endl;
+            return;
+        }
+    }
+    
+    // 为源纹理创建 SRV
+    ComPtr<ID3D11ShaderResourceView> source_srv = createTextureShaderResourceView(source_texture);
+    if (!source_srv) {
+        return;
+    }
+    
+    // 设置视口
+    D3D11_VIEWPORT viewport = {};
+    UINT num_viewports = 1;
+    context->RSGetViewports(&num_viewports, &viewport);
+    
+    // 根据渲染目标类型设置视口大小
     switch (render_target_type_) {
         case RenderTargetType::TEXTURE:
-            // 渲染到纹理：直接复制纹理
             if (render_target_texture_) {
-                context->CopyResource(render_target_texture_.Get(), source_texture.Get());
+                D3D11_TEXTURE2D_DESC desc;
+                render_target_texture_->GetDesc(&desc);
+                viewport.Width = (FLOAT)desc.Width;
+                viewport.Height = (FLOAT)desc.Height;
+                viewport.MinDepth = 0.0f;
+                viewport.MaxDepth = 1.0f;
+                viewport.TopLeftX = 0.0f;
+                viewport.TopLeftY = 0.0f;
             }
             break;
-            
         case RenderTargetType::SWAPCHAIN:
-            // 渲染到交换链：使用渲染管线
-            // 简单实现：这里可以扩展为更复杂的渲染管线
             if (render_target_swapchain_) {
-                // 获取当前后台缓冲区
-                ComPtr<ID3D11Texture2D> back_buffer;
-                HRESULT hr = render_target_swapchain_->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&back_buffer);
-                if (SUCCEEDED(hr)) {
-                    context->CopyResource(back_buffer.Get(), source_texture.Get());
-                    // 呈现到屏幕
-                    render_target_swapchain_->Present(1, 0);
-                }
+                DXGI_SWAP_CHAIN_DESC desc;
+                render_target_swapchain_->GetDesc(&desc);
+                viewport.Width = (FLOAT)desc.BufferDesc.Width;
+                viewport.Height = (FLOAT)desc.BufferDesc.Height;
+                viewport.MinDepth = 0.0f;
+                viewport.MaxDepth = 1.0f;
+                viewport.TopLeftX = 0.0f;
+                viewport.TopLeftY = 0.0f;
             }
             break;
     }
+    
+    // 设置渲染管线状态
+    context->RSSetViewports(1, &viewport);
+    context->OMSetRenderTargets(1, render_target_view_.GetAddressOf(), nullptr);
+    context->RSSetState(raster_state_.Get());
+    context->OMSetBlendState(blend_state_.Get(), nullptr, 0xFFFFFFFF);
+    
+    // 设置 shaders
+    context->VSSetShader(fullscreen_vs_.Get(), nullptr, 0);
+    context->PSSetShader(fullscreen_ps_.Get(), nullptr, 0);
+    
+    // 设置纹理和采样器
+    context->PSSetShaderResources(0, 1, source_srv.GetAddressOf());
+    context->PSSetSamplers(0, 1, texture_sampler_.GetAddressOf());
+    
+    // 设置输入装配器
+    context->IASetInputLayout(nullptr);  // 使用无顶点缓冲区技术
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    // 渲染全屏三角形
+    context->Draw(3, 0);
+    
+    // 对于交换链，需要 Present
+    if (render_target_type_ == RenderTargetType::SWAPCHAIN && render_target_swapchain_) {
+        render_target_swapchain_->Present(1, 0);
+    }
+}
+
+
+bool VideoPlayer::initializeRenderPipeline(ID3D11Device* device) {
+    if (!device) {
+        return false;
+    }
+    
+    // 编译 shader 文件
+    ComPtr<ID3DBlob> vs_blob;
+    ComPtr<ID3DBlob> ps_blob;
+    ComPtr<ID3DBlob> error_blob;
+    
+    // 编译 vertex shader
+    HRESULT hr = D3DCompileFromFile(
+        L"src/fullscreen_quad.hlsl",
+        nullptr,
+        nullptr,
+        "VSMain",
+        "vs_5_0",
+        D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
+        0,
+        &vs_blob,
+        &error_blob
+    );
+    
+    if (FAILED(hr)) {
+        if (error_blob) {
+            std::cerr << "Vertex shader compilation error: " << (char*)error_blob->GetBufferPointer() << std::endl;
+        }
+        return false;
+    }
+    
+    // 编译 pixel shader
+    hr = D3DCompileFromFile(
+        L"src/fullscreen_quad.hlsl",
+        nullptr,
+        nullptr,
+        "PSMain",
+        "ps_5_0",
+        D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
+        0,
+        &ps_blob,
+        &error_blob
+    );
+    
+    if (FAILED(hr)) {
+        if (error_blob) {
+            std::cerr << "Pixel shader compilation error: " << (char*)error_blob->GetBufferPointer() << std::endl;
+        }
+        return false;
+    }
+    
+    // 创建 vertex shader
+    hr = device->CreateVertexShader(
+        vs_blob->GetBufferPointer(),
+        vs_blob->GetBufferSize(),
+        nullptr,
+        &fullscreen_vs_
+    );
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create vertex shader" << std::endl;
+        return false;
+    }
+    
+    // 创建 pixel shader
+    hr = device->CreatePixelShader(
+        ps_blob->GetBufferPointer(),
+        ps_blob->GetBufferSize(),
+        nullptr,
+        &fullscreen_ps_
+    );
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create pixel shader" << std::endl;
+        return false;
+    }
+    
+    // 创建采样器状态
+    D3D11_SAMPLER_DESC sampler_desc = {};
+    sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler_desc.MinLOD = 0.0f;
+    sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+    
+    hr = device->CreateSamplerState(&sampler_desc, &texture_sampler_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create sampler state" << std::endl;
+        return false;
+    }
+    
+    // 创建混合状态
+    D3D11_BLEND_DESC blend_desc = {};
+    blend_desc.AlphaToCoverageEnable = FALSE;
+    blend_desc.IndependentBlendEnable = FALSE;
+    blend_desc.RenderTarget[0].BlendEnable = FALSE;
+    blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].DestBlend = D3D11_BLEND_ZERO;
+    blend_desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    blend_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    
+    hr = device->CreateBlendState(&blend_desc, &blend_state_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create blend state" << std::endl;
+        return false;
+    }
+    
+    // 创建光栅化状态
+    D3D11_RASTERIZER_DESC raster_desc = {};
+    raster_desc.FillMode = D3D11_FILL_SOLID;
+    raster_desc.CullMode = D3D11_CULL_NONE;
+    raster_desc.FrontCounterClockwise = FALSE;
+    raster_desc.DepthBias = 0;
+    raster_desc.DepthBiasClamp = 0.0f;
+    raster_desc.SlopeScaledDepthBias = 0.0f;
+    raster_desc.DepthClipEnable = TRUE;
+    raster_desc.ScissorEnable = FALSE;
+    raster_desc.MultisampleEnable = FALSE;
+    raster_desc.AntialiasedLineEnable = FALSE;
+    
+    hr = device->CreateRasterizerState(&raster_desc, &raster_state_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create rasterizer state" << std::endl;
+        return false;
+    }
+    
+    return true;
+}
+
+
+ComPtr<ID3D11ShaderResourceView> VideoPlayer::createTextureShaderResourceView(ComPtr<ID3D11Texture2D> texture) {
+    if (!texture) {
+        return nullptr;
+    }
+    
+    // 获取设备
+    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
+    if (!hw_decoder) {
+        return nullptr;
+    }
+    
+    ID3D11Device* device = hw_decoder->getD3D11Device();
+    if (!device) {
+        return nullptr;
+    }
+    
+    // 获取纹理描述
+    D3D11_TEXTURE2D_DESC texture_desc;
+    texture->GetDesc(&texture_desc);
+    
+    // 创建 SRV 描述
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Format = texture_desc.Format;
+    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srv_desc.Texture2D.MostDetailedMip = 0;
+    srv_desc.Texture2D.MipLevels = texture_desc.MipLevels;
+    
+    // 创建 SRV
+    ComPtr<ID3D11ShaderResourceView> srv;
+    HRESULT hr = device->CreateShaderResourceView(texture.Get(), &srv_desc, &srv);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create shader resource view" << std::endl;
+        return nullptr;
+    }
+    
+    return srv;
 } 

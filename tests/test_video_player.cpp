@@ -114,7 +114,7 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
         render_target_desc.SampleDesc.Count = 1;
         render_target_desc.SampleDesc.Quality = 0;
         render_target_desc.Usage = D3D11_USAGE_DEFAULT;
-        render_target_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+        render_target_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
         render_target_desc.CPUAccessFlags = 0;
         render_target_desc.MiscFlags = 0;
         

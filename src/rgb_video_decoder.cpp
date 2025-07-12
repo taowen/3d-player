@@ -198,18 +198,13 @@ bool RgbVideoDecoder::convertYuvToRgb(AVFrame* yuv_frame, ComPtr<ID3D11Texture2D
         return false;
     }
     
-    // 创建 Video Processor Input View
-    ComPtr<ID3D11VideoProcessorInputView> input_view;
-    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_view_desc = {};
-    input_view_desc.FourCC = 0;
-    input_view_desc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
-    input_view_desc.Texture2D.MipSlice = 0;
-    // yuv_frame->data[1] 包含数组切片索引
-    input_view_desc.Texture2D.ArraySlice = (UINT)(intptr_t)yuv_frame->data[1];
+    // 获取数组切片索引
+    UINT array_slice = (UINT)(intptr_t)yuv_frame->data[1];
     
-    HRESULT hr = video_device_->CreateVideoProcessorInputView(yuv_texture, video_processor_enumerator_.Get(), &input_view_desc, &input_view);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create video processor input view" << std::endl;
+    // 获取或创建 Video Processor Input View（使用缓存）
+    ComPtr<ID3D11VideoProcessorInputView> input_view = getOrCreateInputView(yuv_texture, array_slice);
+    if (!input_view) {
+        std::cerr << "Failed to get or create video processor input view" << std::endl;
         return false;
     }
     
@@ -228,7 +223,7 @@ bool RgbVideoDecoder::convertYuvToRgb(AVFrame* yuv_frame, ComPtr<ID3D11Texture2D
     stream_data.pInputSurfaceRight = nullptr;
     
     // 执行视频处理
-    hr = video_context_->VideoProcessorBlt(video_processor_.Get(), output_view_.Get(), 0, 1, &stream_data);
+    HRESULT hr = video_context_->VideoProcessorBlt(video_processor_.Get(), output_view_.Get(), 0, 1, &stream_data);
     if (FAILED(hr)) {
         std::cerr << "Failed to execute video processor blt" << std::endl;
         return false;
@@ -240,7 +235,48 @@ bool RgbVideoDecoder::convertYuvToRgb(AVFrame* yuv_frame, ComPtr<ID3D11Texture2D
     return true;
 }
 
+ComPtr<ID3D11VideoProcessorInputView> RgbVideoDecoder::getOrCreateInputView(ID3D11Texture2D* texture, UINT array_slice) {
+    if (!texture || !video_device_ || !video_processor_enumerator_) {
+        return nullptr;
+    }
+    
+    // 创建查找键
+    InputViewKey key = { texture, array_slice };
+    
+    // 检查缓存中是否已存在
+    auto it = input_view_cache_.find(key);
+    if (it != input_view_cache_.end()) {
+        return it->second;
+    }
+    
+    // 创建新的 Input View
+    ComPtr<ID3D11VideoProcessorInputView> input_view;
+    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_view_desc = {};
+    input_view_desc.FourCC = 0;
+    input_view_desc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
+    input_view_desc.Texture2D.MipSlice = 0;
+    input_view_desc.Texture2D.ArraySlice = array_slice;
+    
+    HRESULT hr = video_device_->CreateVideoProcessorInputView(texture, video_processor_enumerator_.Get(), &input_view_desc, &input_view);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create video processor input view, HRESULT: 0x" << std::hex << hr << std::endl;
+        return nullptr;
+    }
+    
+    // 添加到缓存
+    input_view_cache_[key] = input_view;
+    
+    return input_view;
+}
+
+
+void RgbVideoDecoder::clearInputViewCache() {
+    input_view_cache_.clear();
+}
+
+
 void RgbVideoDecoder::cleanup() {
+    clearInputViewCache();
     output_view_.Reset();
     rgb_texture_.Reset();
     video_processor_.Reset();

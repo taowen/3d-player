@@ -4,6 +4,7 @@
 #include "hw_video_decoder.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 // D3D11 headers are already included through hw_video_decoder.h
 
@@ -93,12 +94,32 @@ private:
     ComPtr<ID3D11Texture2D> rgb_texture_;
     ComPtr<ID3D11VideoProcessorOutputView> output_view_;
     
+    // Input View 缓存相关
+    struct InputViewKey {
+        ID3D11Texture2D* texture;
+        UINT array_slice;
+        
+        bool operator==(const InputViewKey& other) const {
+            return texture == other.texture && array_slice == other.array_slice;
+        }
+    };
+    
+    struct InputViewKeyHash {
+        std::size_t operator()(const InputViewKey& key) const {
+            return std::hash<void*>()(key.texture) ^ (std::hash<UINT>()(key.array_slice) << 1);
+        }
+    };
+    
+    std::unordered_map<InputViewKey, ComPtr<ID3D11VideoProcessorInputView>, InputViewKeyHash> input_view_cache_;
+    
     // 视频尺寸
     int video_width_;
     int video_height_;
     
     bool initializeVideoProcessor();
     bool convertYuvToRgb(AVFrame* yuv_frame, ComPtr<ID3D11Texture2D>& rgb_texture);
+    ComPtr<ID3D11VideoProcessorInputView> getOrCreateInputView(ID3D11Texture2D* texture, UINT array_slice);
+    void clearInputViewCache();
     void cleanup();
 };
 

@@ -57,7 +57,8 @@ tests/
 ├── test_rgb_video_decoder.cpp # RGB视频解码器测试
 ├── test_video_player.cpp     # 视频播放器测试
 test_data/
-└── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
+├── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
+└── sample_with_audio.mkv     # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码，包含AAC音频
 build.ps1                     # PowerShell构建脚本
 ```
 

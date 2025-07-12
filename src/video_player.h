@@ -41,20 +41,28 @@ public:
     ~VideoPlayer();
     
     /**
-     * @brief 打开视频文件并初始化播放器（测试环境：渲染到纹理）
+     * @brief 打开视频文件并初始化解码器（不设置渲染目标）
      * @param filepath 视频文件路径
-     * @param render_target 渲染目标纹理
      * @return true 成功打开视频文件，false 打开失败
+     * @note 打开后可以通过 getD3D11Device() 获取设备，然后调用 setRenderTarget() 设置渲染目标
      */
-    bool open(const std::string& filepath, ComPtr<ID3D11Texture2D> render_target);
+    bool open(const std::string& filepath);
     
     /**
-     * @brief 打开视频文件并初始化播放器（生产环境：渲染到交换链）
-     * @param filepath 视频文件路径
-     * @param swap_chain 交换链
-     * @return true 成功打开视频文件，false 打开失败
+     * @brief 设置渲染目标（测试环境：渲染到纹理）
+     * @param render_target 渲染目标纹理
+     * @return true 成功设置渲染目标，false 设置失败
+     * @note 必须在 open() 之后调用
      */
-    bool open(const std::string& filepath, ComPtr<IDXGISwapChain> swap_chain);
+    bool setRenderTarget(ComPtr<ID3D11Texture2D> render_target);
+    
+    /**
+     * @brief 设置渲染目标（生产环境：渲染到交换链）
+     * @param swap_chain 交换链
+     * @return true 成功设置渲染目标，false 设置失败
+     * @note 必须在 open() 之后调用
+     */
+    bool setRenderTarget(ComPtr<IDXGISwapChain> swap_chain);
     
     /**
      * @brief 定时器回调，更新播放状态并内部进行渲染
@@ -76,10 +84,16 @@ public:
     void close();
     
     /**
-     * @brief 检查播放器是否已打开
-     * @return true 播放器已打开，false 播放器未打开
+     * @brief 检查播放器是否已打开文件
+     * @return true 播放器已打开文件，false 播放器未打开文件
      */
     bool isOpen() const;
+    
+    /**
+     * @brief 检查播放器是否已准备好播放（文件已打开且渲染目标已设置）
+     * @return true 播放器已准备好，false 播放器未准备好
+     */
+    bool isReady() const;
     
     /**
      * @brief 检查是否到达文件末尾
@@ -92,6 +106,20 @@ public:
      * @return RgbVideoDecoder* RGB 解码器指针，可能为 nullptr
      */
     RgbVideoDecoder* getRgbDecoder() const;
+    
+    /**
+     * @brief 获取 D3D11 设备
+     * @return ID3D11Device* D3D11 设备指针，可能为 nullptr
+     * @note 只有在 open() 成功后才能获取到设备
+     */
+    ID3D11Device* getD3D11Device() const;
+    
+    /**
+     * @brief 获取 D3D11 设备上下文
+     * @return ID3D11DeviceContext* D3D11 设备上下文指针，可能为 nullptr
+     * @note 只有在 open() 成功后才能获取到设备上下文
+     */
+    ID3D11DeviceContext* getD3D11DeviceContext() const;
 
 private:
     std::unique_ptr<RgbVideoDecoder> rgb_decoder_;

@@ -80,9 +80,7 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
     VideoPlayer player;
     
     SECTION("Open non-existent file should fail") {
-        // 创建一个虚拟的渲染目标纹理用于测试
-        ComPtr<ID3D11Texture2D> dummy_render_target;
-        REQUIRE_FALSE(player.open("nonexistent_file.mkv", dummy_render_target));
+        REQUIRE_FALSE(player.open("nonexistent_file.mkv"));
         REQUIRE_FALSE(player.isOpen());
     }
     
@@ -92,22 +90,25 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
             SKIP("Test file " << TEST_FILE << " not found");
         }
         
-        // 首先创建一个临时的RGB解码器来获取D3D11设备
-        RgbVideoDecoder temp_decoder;
-        REQUIRE(temp_decoder.open(TEST_FILE));
+        // 第一步：打开视频文件（获取设备）
+        REQUIRE(player.open(TEST_FILE));
+        REQUIRE(player.isOpen());
+        REQUIRE_FALSE(player.isEOF());
         
-        HwVideoDecoder* hw_decoder = temp_decoder.getHwDecoder();
-        REQUIRE(hw_decoder != nullptr);
-        
-        ID3D11Device* device = hw_decoder->getD3D11Device();
-        ID3D11DeviceContext* context = hw_decoder->getD3D11DeviceContext();
+        // 从 VideoPlayer 获取 D3D11 设备
+        ID3D11Device* device = player.getD3D11Device();
+        ID3D11DeviceContext* context = player.getD3D11DeviceContext();
         REQUIRE(device != nullptr);
         REQUIRE(context != nullptr);
         
+        // 获取视频尺寸
+        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
+        REQUIRE(rgb_decoder != nullptr);
+        
         // 创建测试用的渲染目标纹理
         D3D11_TEXTURE2D_DESC render_target_desc = {};
-        render_target_desc.Width = temp_decoder.getWidth();
-        render_target_desc.Height = temp_decoder.getHeight();
+        render_target_desc.Width = rgb_decoder->getWidth();
+        render_target_desc.Height = rgb_decoder->getHeight();
         render_target_desc.MipLevels = 1;
         render_target_desc.ArraySize = 1;
         render_target_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -122,25 +123,9 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
         HRESULT hr = device->CreateTexture2D(&render_target_desc, nullptr, &render_target);
         REQUIRE(SUCCEEDED(hr));
         
-        // 关闭临时解码器
-        temp_decoder.close();
-        
-        // 打开视频文件（使用渲染目标）
-        REQUIRE(player.open(TEST_FILE, render_target));
-        REQUIRE(player.isOpen());
-        REQUIRE_FALSE(player.isEOF());
-        
-        // 获取 D3D11 设备和上下文用于读取纹理
-        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-        REQUIRE(rgb_decoder != nullptr);
-        
-        hw_decoder = rgb_decoder->getHwDecoder();
-        REQUIRE(hw_decoder != nullptr);
-        
-        device = hw_decoder->getD3D11Device();
-        context = hw_decoder->getD3D11DeviceContext();
-        REQUIRE(device != nullptr);
-        REQUIRE(context != nullptr);
+        // 第二步：设置渲染目标
+        REQUIRE(player.setRenderTarget(render_target));
+        REQUIRE(player.isReady());
         
         // 模拟时间驱动的播放
         double current_time = 0.0;

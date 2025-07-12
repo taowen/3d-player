@@ -20,7 +20,7 @@ VideoPlayer::~VideoPlayer() {
 }
 
 
-bool VideoPlayer::open(const std::string& filepath, ComPtr<ID3D11Texture2D> render_target) {
+bool VideoPlayer::open(const std::string& filepath) {
     if (isOpen()) {
         close();
     }
@@ -50,20 +50,6 @@ bool VideoPlayer::open(const std::string& filepath, ComPtr<ID3D11Texture2D> rend
     stream_info_ = stream_reader->getStreamInfo();
     if (stream_info_.video_stream_index < 0) {
         std::cerr << "No video stream found" << std::endl;
-        close();
-        return false;
-    }
-    
-    // 初始化渲染目标（纹理）
-    if (!initializeRenderTarget(render_target)) {
-        std::cerr << "Failed to initialize render target texture" << std::endl;
-        close();
-        return false;
-    }
-    
-    // 预解码第一帧
-    if (!preloadNextFrame()) {
-        std::cerr << "Failed to preload first frame" << std::endl;
         close();
         return false;
     }
@@ -72,51 +58,53 @@ bool VideoPlayer::open(const std::string& filepath, ComPtr<ID3D11Texture2D> rend
 }
 
 
-bool VideoPlayer::open(const std::string& filepath, ComPtr<IDXGISwapChain> swap_chain) {
-    if (isOpen()) {
-        close();
-    }
-    
-    // 打开 RGB 解码器
-    if (!rgb_decoder_->open(filepath)) {
-        std::cerr << "Failed to open RGB decoder for: " << filepath << std::endl;
+bool VideoPlayer::setRenderTarget(ComPtr<ID3D11Texture2D> render_target) {
+    if (!isOpen()) {
+        std::cerr << "Cannot set render target: video not opened" << std::endl;
         return false;
     }
     
-    // 获取视频信息
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        std::cerr << "Failed to get hardware decoder" << std::endl;
-        close();
-        return false;
-    }
+    // 清理之前的渲染目标
+    render_target_view_.Reset();
+    render_target_texture_.Reset();
+    render_target_swapchain_.Reset();
     
-    MKVStreamReader* stream_reader = hw_decoder->getStreamReader();
-    if (!stream_reader) {
-        std::cerr << "Failed to get stream reader" << std::endl;
-        close();
-        return false;
-    }
-    
-    // 获取流信息以计算时间戳
-    stream_info_ = stream_reader->getStreamInfo();
-    if (stream_info_.video_stream_index < 0) {
-        std::cerr << "No video stream found" << std::endl;
-        close();
-        return false;
-    }
-    
-    // 初始化渲染目标（交换链）
-    if (!initializeRenderTarget(swap_chain)) {
-        std::cerr << "Failed to initialize render target swapchain" << std::endl;
-        close();
+    // 初始化渲染目标（纹理）
+    if (!initializeRenderTarget(render_target)) {
+        std::cerr << "Failed to initialize render target texture" << std::endl;
         return false;
     }
     
     // 预解码第一帧
     if (!preloadNextFrame()) {
         std::cerr << "Failed to preload first frame" << std::endl;
-        close();
+        return false;
+    }
+    
+    return true;
+}
+
+
+bool VideoPlayer::setRenderTarget(ComPtr<IDXGISwapChain> swap_chain) {
+    if (!isOpen()) {
+        std::cerr << "Cannot set render target: video not opened" << std::endl;
+        return false;
+    }
+    
+    // 清理之前的渲染目标
+    render_target_view_.Reset();
+    render_target_texture_.Reset();
+    render_target_swapchain_.Reset();
+    
+    // 初始化渲染目标（交换链）
+    if (!initializeRenderTarget(swap_chain)) {
+        std::cerr << "Failed to initialize render target swapchain" << std::endl;
+        return false;
+    }
+    
+    // 预解码第一帧
+    if (!preloadNextFrame()) {
+        std::cerr << "Failed to preload first frame" << std::endl;
         return false;
     }
     
@@ -125,7 +113,7 @@ bool VideoPlayer::open(const std::string& filepath, ComPtr<IDXGISwapChain> swap_
 
 
 void VideoPlayer::onTimer(double current_time) {
-    if (!isOpen()) {
+    if (!isReady()) {
         return;
     }
     
@@ -211,7 +199,12 @@ void VideoPlayer::close() {
 
 
 bool VideoPlayer::isOpen() const {
-    return rgb_decoder_ && rgb_decoder_->isOpen() && render_target_view_;
+    return rgb_decoder_ && rgb_decoder_->isOpen();
+}
+
+
+bool VideoPlayer::isReady() const {
+    return isOpen() && render_target_view_;
 }
 
 
@@ -222,6 +215,34 @@ bool VideoPlayer::isEOF() const {
 
 RgbVideoDecoder* VideoPlayer::getRgbDecoder() const {
     return rgb_decoder_.get();
+}
+
+
+ID3D11Device* VideoPlayer::getD3D11Device() const {
+    if (!isOpen()) {
+        return nullptr;
+    }
+    
+    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
+    if (!hw_decoder) {
+        return nullptr;
+    }
+    
+    return hw_decoder->getD3D11Device();
+}
+
+
+ID3D11DeviceContext* VideoPlayer::getD3D11DeviceContext() const {
+    if (!isOpen()) {
+        return nullptr;
+    }
+    
+    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
+    if (!hw_decoder) {
+        return nullptr;
+    }
+    
+    return hw_decoder->getD3D11DeviceContext();
 }
 
 

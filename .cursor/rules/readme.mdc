@@ -38,6 +38,7 @@ alwaysApply: true
 ## 文件结构
 ```
 src/
+├── main.cpp                  # 3D Player主程序入口
 ├── mkv_stream_reader.h       # MKV流读取器头文件
 ├── mkv_stream_reader.cpp     # MKV流读取器实现
 ├── hw_video_decoder.h        # DirectX 11硬件视频解码器头文件
@@ -69,20 +70,26 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 ### VideoPlayer
 视频播放器，支持时间驱动的播放控制和预解码缓冲。基于 RgbVideoDecoder 提供 RGB 纹理输出，支持 onTimer 接口进行时间驱动的帧切换。
-
-**核心功能**：
-- 时间戳驱动的帧播放：根据视频的实际时间戳进行帧切换
-- 预解码缓冲：维护 3 帧缓冲队列，确保播放流畅
-- 线程安全：使用 mutex 保护帧缓冲区
-- 内部渲染：`onTimer` 内部直接调用渲染，无需外部管理
-- 支持测试和生产环境：render to texture 和 window swapchain 两种使用场景
-
-**接口设计**：
-- `open(filepath, render_target)` - 测试环境：绑定纹理渲染目标
-- `open(filepath, swap_chain)` - 生产环境：绑定交换链渲染目标
-- `onTimer(current_time)` - 内部自动进行渲染，不返回状态
-
 详细接口请参考 `src/video_player.h`。
+
+### 3D Player 应用程序
+基于 VideoPlayer 组件构建的完整视频播放应用程序，提供 Windows 窗口播放体验。
+
+**核心特性**：
+- 完整的 Win32 窗口应用程序
+- 基于 VideoPlayer 的交换链渲染
+- 时间驱动的自动播放控制
+- 支持命令行参数传入视频文件路径
+- 1280x720 窗口分辨率，自动居中显示
+- 简洁的用户交互：ESC 键退出
+
+**实现细节**：
+- 使用 HwVideoDecoder 创建的 D3D11 设备确保设备一致性
+- 创建 DXGI 交换链绑定到窗口
+- 消息循环中调用 `VideoPlayer::onTimer` 进行时间驱动的播放
+- 自动检测视频播放结束并退出程序
+
+详细实现请参考 `src/main.cpp`。
 
 ## 核心决策
 
@@ -111,12 +118,25 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 ### Git Bash 环境
 ```bash
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test  # 构建并运行测试
+# 构建并运行测试
+powershell -ExecutionPolicy Bypass -File ./build.ps1 test
+
+# 构建 3D Player 主程序
+powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
+
+# 运行 3D Player（播放视频）
+./build/Debug/3d_player.exe test_data/sample_hw.mkv
 ```
 
 - **测试运行目录**：测试程序在项目根目录 (`3d-player/`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
 - **测试文件**：`test_data/sample_hw.mkv` 从项目根目录访问
+
+### 3D Player 使用方法
+- **功能**：从头到尾顺序播放视频到 Windows 窗口
+- **控制**：按 ESC 键退出，视频播放完成后自动退出
+- **窗口**：1280x720 分辨率，自动居中显示
+- **要求**：必须支持 DirectX 11 硬件解码
 
 ⚠️ **重要：Git Bash 路径问题**
 - Git Bash 使用 Linux 风格路径分隔符 `/`，不认识 Windows 的 `\`

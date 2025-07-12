@@ -61,3 +61,36 @@ target_link_libraries(integration-test PRIVATE
 include(cmake/FindFFmpeg.cmake)
 target_link_ffmpeg(integration-test)
 copy_ffmpeg_dlls(integration-test)
+
+
+# 添加 3d_player 可执行文件
+add_executable(3d_player 
+    src/main.cpp
+    src/mkv_stream_reader.cpp
+    src/hw_video_decoder.cpp
+    src/rgb_video_decoder.cpp
+    src/video_player.cpp
+)
+
+# 应用编译选项
+target_compile_options(3d_player PRIVATE
+    /W4 /WX- /permissive- /std:c++latest
+    /Zi                 # Generate debug info for better error reports
+    /utf-8              # Use UTF-8 encoding for source files
+)
+
+# 链接 DirectX 和 Windows 系统库
+target_link_libraries(3d_player PRIVATE
+    d3d11.lib
+    dxgi.lib
+    d3dcompiler.lib
+    ole32.lib
+    oleaut32.lib
+    user32.lib          # Win32 API
+    gdi32.lib           # GDI API
+    kernel32.lib        # Windows Kernel API
+)
+
+# 链接 FFmpeg
+target_link_ffmpeg(3d_player)
+copy_ffmpeg_dlls(3d_player)

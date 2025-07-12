@@ -37,12 +37,18 @@ try {
             $BuildDesc = "test target"
             $RunTests = $true
         }
+        "3d_player" {
+            $BuildTarget = "3d_player"
+            $BuildDesc = "3d_player target"
+            $RunTests = $false
+        }
         default {
             Write-Host "Unknown target: $Target" -ForegroundColor Red
             Write-Host ""
             Write-Host "Usage: .\build.ps1 [target]" -ForegroundColor White
             Write-Host "Available targets:" -ForegroundColor White
-            Write-Host "  test  - Build and run tests (default)" -ForegroundColor White
+            Write-Host "  test       - Build and run tests (default)" -ForegroundColor White
+            Write-Host "  3d_player  - Build 3d_player executable" -ForegroundColor White
             exit 1
         }
     }
@@ -71,4 +77,11 @@ Write-Host ""
 if ($RunTests) {
     Write-Host "Running tests..." -ForegroundColor Green
     & "build\Debug\integration-test.exe" --success --verbosity high
+} else {
+    Write-Host "Build completed successfully!" -ForegroundColor Green
+    if ($Target.ToLower() -eq "3d_player") {
+        Write-Host ""
+        Write-Host "Usage: .\build\Debug\3d_player.exe <video_file_path>" -ForegroundColor White
+        Write-Host "Example: .\build\Debug\3d_player.exe test_data\sample_hw.mkv" -ForegroundColor White
+    }
 } 

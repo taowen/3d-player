@@ -1,15 +1,26 @@
 #pragma once
 
 #include "rgb_video_decoder.h"
+#include "mkv_stream_reader.h"
 #include <memory>
 #include <string>
 #include <queue>
 #include <mutex>
 #include <atomic>
+#include <dxgi.h>
 
 // D3D11 headers are already included through rgb_video_decoder.h
 
 using Microsoft::WRL::ComPtr;
+
+
+/**
+ * @brief 渲染目标类型
+ */
+enum class RenderTargetType {
+    TEXTURE,      // 渲染到纹理（测试环境）
+    SWAPCHAIN     // 渲染到交换链（生产环境）
+};
 
 
 /**
@@ -22,6 +33,7 @@ using Microsoft::WRL::ComPtr;
  * - 预解码缓冲机制，提前储备下一帧
  * - 顺序播放，不支持跳转
  * - 线程安全的帧缓冲管理
+ * - 支持测试和生产环境两种渲染目标
  */
 class VideoPlayer {
 public:
@@ -29,22 +41,31 @@ public:
     ~VideoPlayer();
     
     /**
-     * @brief 打开视频文件并初始化播放器
+     * @brief 打开视频文件并初始化播放器（测试环境：渲染到纹理）
      * @param filepath 视频文件路径
+     * @param render_target 渲染目标纹理
      * @return true 成功打开视频文件，false 打开失败
      */
-    bool open(const std::string& filepath);
+    bool open(const std::string& filepath, ComPtr<ID3D11Texture2D> render_target);
     
     /**
-     * @brief 定时器回调，更新播放状态并切换帧
-     * @param current_time 当前时间 (秒)，从播放开始计算的相对时间
-     * @return true 需要重新渲染 (切换到了新帧)，false 不需要渲染
-     * @note 调用频率应该高于视频帧率，由外部控制
+     * @brief 打开视频文件并初始化播放器（生产环境：渲染到交换链）
+     * @param filepath 视频文件路径
+     * @param swap_chain 交换链
+     * @return true 成功打开视频文件，false 打开失败
      */
-    bool onTimer(double current_time);
+    bool open(const std::string& filepath, ComPtr<IDXGISwapChain> swap_chain);
     
     /**
-     * @brief 获取当前帧的 RGB 纹理
+     * @brief 定时器回调，更新播放状态并内部进行渲染
+     * @param current_time 当前时间 (秒)，从播放开始计算的相对时间
+     * @note 调用频率应该高于视频帧率，由外部控制
+     * @note 内部会自动进行渲染，无需外部调用渲染方法
+     */
+    void onTimer(double current_time);
+    
+    /**
+     * @brief 获取当前帧的 RGB 纹理（仅用于测试验证）
      * @return ComPtr<ID3D11Texture2D> 当前帧的 RGB 纹理，可能为空
      */
     ComPtr<ID3D11Texture2D> getCurrentFrame() const;
@@ -73,5 +94,62 @@ public:
     RgbVideoDecoder* getRgbDecoder() const;
 
 private:
-    std::unique_ptr<RgbVideoDecoder> rgb_decoder_
+    std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
+    
+    // 帧缓冲管理
+    std::queue<RgbVideoDecoder::DecodedRgbFrame> frame_buffer_;
+    ComPtr<ID3D11Texture2D> current_frame_texture_;
+    double current_frame_time_ = 0.0;
+    
+    // 视频流信息
+    MKVStreamReader::StreamInfo stream_info_;
+    
+    // 渲染目标管理
+    RenderTargetType render_target_type_;
+    ComPtr<ID3D11Texture2D> render_target_texture_;     // 测试环境：目标纹理
+    ComPtr<IDXGISwapChain> render_target_swapchain_;    // 生产环境：交换链
+    ComPtr<ID3D11RenderTargetView> render_target_view_; // 渲染目标视图
+    
+    // 线程安全
+    mutable std::mutex frame_mutex_;
+    
+    // 私有方法
+    
+    
+    /**
+     * @brief 预加载下一帧到缓冲区
+     * @return true 成功预加载，false 预加载失败
+     */
+    bool preloadNextFrame();
+    
+    
+    /**
+     * @brief 将 AVFrame 的 PTS 转换为秒数
+     * @param frame AVFrame 指针
+     * @return double 时间戳（秒）
+     */
+    double convertPtsToSeconds(AVFrame* frame) const;
+    
+    
+    /**
+     * @brief 初始化渲染目标（纹理）
+     * @param render_target 渲染目标纹理
+     * @return true 成功初始化，false 初始化失败
+     */
+    bool initializeRenderTarget(ComPtr<ID3D11Texture2D> render_target);
+    
+    
+    /**
+     * @brief 初始化渲染目标（交换链）
+     * @param swap_chain 交换链
+     * @return true 成功初始化，false 初始化失败
+     */
+    bool initializeRenderTarget(ComPtr<IDXGISwapChain> swap_chain);
+    
+    
+    /**
+     * @brief 执行渲染操作
+     * @param source_texture 源纹理
+     */
+    void renderFrame(ComPtr<ID3D11Texture2D> source_texture);
 };

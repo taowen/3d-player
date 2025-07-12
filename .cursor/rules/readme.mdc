@@ -20,10 +20,11 @@ alwaysApply: true
 - 通过多轮简化，去掉所有不必要的复杂性
 
 ### 3. 测试驱动开发
-- 先写测试，明确期望的行为
-- 写最小化的实现让测试通过
-- 逐步增加功能，每次只添加一个小功能
-- 保持测试始终通过
+- **⚠️ 先写测试，再写实现**：绝不允许在没有测试的情况下编写实现代码
+- **一次只写一个测试 section**：每个 TEST_CASE 代表一个完整的功能点，完成一个再写下一个
+- **最小化实现**：写最简单的实现让当前测试通过，不要提前考虑未来的需求
+- **逐步迭代**：每次只添加一个小功能，保持测试始终通过
+- **明确期望**：测试要清晰地描述期望的行为，作为实现的规范
 
 ### 4. 小步迭代原则
 - 每次只做一件事，做完一件事再做下一件事
@@ -43,6 +44,8 @@ src/
 ├── mkv_stream_reader.cpp     # MKV流读取器实现
 ├── hw_video_decoder.h        # DirectX 11硬件视频解码器头文件
 ├── hw_video_decoder.cpp      # DirectX 11硬件视频解码器实现
+├── audio_decoder.h           # 音频解码器头文件
+├── audio_decoder.cpp         # 音频解码器实现
 ├── rgb_video_decoder.h       # RGB视频解码器头文件
 ├── rgb_video_decoder.cpp     # RGB视频解码器实现
 ├── video_player.h            # 视频播放器头文件
@@ -50,6 +53,7 @@ src/
 tests/
 ├── test_mkv_stream_reader.cpp # MKV流读取器测试
 ├── test_hw_video_decoder.cpp  # 硬件视频解码器测试
+├── test_audio_decoder.cpp    # 音频解码器测试
 ├── test_rgb_video_decoder.cpp # RGB视频解码器测试
 ├── test_video_player.cpp     # 视频播放器测试
 test_data/
@@ -64,6 +68,9 @@ MKV文件流读取器，提供 Pull-style 接口，支持视频和音频流的�
 
 ### HwVideoDecoder  
 DirectX 11 硬件视频解码器，使用 FFmpeg AVBufferPool 进行内存管理。详细接口请参考 `src/hw_video_decoder.h`。
+
+### AudioDecoder
+音频解码器，使用 FFmpeg 进行音频解码。支持常见的音频编解码器（AAC、MP3、Opus等），输出格式为 PCM 音频帧。详细接口请参考 `src/audio_decoder.h`。
 
 ### RgbVideoDecoder
 RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部构造 HwVideoDecoder，使用 VideoProcessorBlt 将 YUV 格式转换为 RGB D3D11 纹理。详细接口请参考 `src/rgb_video_decoder.h`。
@@ -121,6 +128,15 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 # 构建并运行测试
 powershell -ExecutionPolicy Bypass -File ./build.ps1 test
 
+# 构建并运行特定测试用例
+powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "AudioDecoder*"
+
+# 构建并运行特定标签的测试
+powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[audio_decoder]"
+
+# 构建并运行具体的测试用例
+powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "AudioDecoder basic functionality"
+
 # 构建 3D Player 主程序
 powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
 
@@ -131,6 +147,16 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
 - **测试运行目录**：测试程序在项目根目录 (`3d-player/`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
 - **测试文件**：`test_data/sample_hw.mkv` 从项目根目录访问
+
+### 测试过滤功能
+支持使用 `-TestFilter` 参数来运行特定的测试用例：
+
+- **通配符过滤**：`-TestFilter "AudioDecoder*"` - 运行所有以 AudioDecoder 开头的测试
+- **标签过滤**：`-TestFilter "[audio_decoder]"` - 运行所有带有 audio_decoder 标签的测试
+- **精确匹配**：`-TestFilter "AudioDecoder basic functionality"` - 运行具体的测试用例
+- **多个条件**：`-TestFilter "AudioDecoder* and not [slow]"` - 运行符合条件的测试
+
+⚠️ **注意**：测试过滤器区分大小写，使用双引号包围过滤条件
 
 ### 3D Player 使用方法
 - **功能**：从头到尾顺序播放视频到 Windows 窗口

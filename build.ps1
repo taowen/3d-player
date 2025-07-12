@@ -1,5 +1,6 @@
 param(
-    [string]$Target = "test"
+    [string]$Target = "test",
+    [string]$TestFilter = ""
 )
 
 # 设置错误处理
@@ -45,10 +46,15 @@ try {
         default {
             Write-Host "Unknown target: $Target" -ForegroundColor Red
             Write-Host ""
-            Write-Host "Usage: .\build.ps1 [target]" -ForegroundColor White
+            Write-Host "Usage: .\build.ps1 [target] [-TestFilter <filter>]" -ForegroundColor White
             Write-Host "Available targets:" -ForegroundColor White
             Write-Host "  test       - Build and run tests (default)" -ForegroundColor White
             Write-Host "  3d_player  - Build 3d_player executable" -ForegroundColor White
+            Write-Host ""
+            Write-Host "Test filter examples:" -ForegroundColor White
+            Write-Host "  -TestFilter 'AudioDecoder*'           - Run all AudioDecoder tests" -ForegroundColor White
+            Write-Host "  -TestFilter '[audio_decoder]'         - Run tests with audio_decoder tag" -ForegroundColor White
+            Write-Host "  -TestFilter 'AudioDecoder basic functionality' - Run specific test case" -ForegroundColor White
             exit 1
         }
     }
@@ -75,8 +81,13 @@ Write-Host ""
 
 # 根据目标执行后续操作
 if ($RunTests) {
-    Write-Host "Running tests..." -ForegroundColor Green
-    & "build\Debug\integration-test.exe" --success --verbosity high
+    if ($TestFilter -ne "") {
+        Write-Host "Running tests with filter: $TestFilter" -ForegroundColor Green
+        & "build\Debug\integration-test.exe" --success --verbosity high $TestFilter
+    } else {
+        Write-Host "Running tests..." -ForegroundColor Green
+        & "build\Debug\integration-test.exe" --success --verbosity high
+    }
 } else {
     Write-Host "Build completed successfully!" -ForegroundColor Green
     if ($Target.ToLower() -eq "3d_player") {

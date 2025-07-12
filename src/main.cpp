@@ -303,6 +303,10 @@ bool finalizeVideoPlayer() {
  * @return int 程序退出代码
  */
 int main(int argc, char* argv[]) {
+    // 设置控制台代码页为UTF-8，解决中文显示乱码问题
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    
     // 检查命令行参数
     if (argc < 2) {
         std::cerr << "错误：缺少视频文件路径参数" << std::endl;
@@ -387,10 +391,8 @@ int main(int argc, char* argv[]) {
                 }
             }
             
-            // 呈现交换链
-            if (g_swapchain) {
-                g_swapchain->Present(1, 0);
-            }
+            // 注意：VideoPlayer 内部已经处理了交换链的 Present 操作
+            // 不需要在这里再次调用 Present
             
             // 让出CPU时间片
             Sleep(1);

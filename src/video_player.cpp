@@ -426,6 +426,11 @@ void VideoPlayer::renderFrame(ComPtr<ID3D11Texture2D> source_texture) {
     // 设置渲染管线状态
     context->RSSetViewports(1, &viewport);
     context->OMSetRenderTargets(1, render_target_view_.GetAddressOf(), nullptr);
+    
+    // 清屏操作，确保没有残留内容
+    FLOAT clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f }; // 黑色背景
+    context->ClearRenderTargetView(render_target_view_.Get(), clear_color);
+    
     context->RSSetState(raster_state_.Get());
     context->OMSetBlendState(blend_state_.Get(), nullptr, 0xFFFFFFFF);
     

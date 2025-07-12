@@ -57,6 +57,7 @@ target_link_libraries(integration-test PRIVATE
     d3dcompiler.lib
     ole32.lib
     oleaut32.lib
+    winmm.lib
 )
 
 # Link FFmpeg to target
@@ -92,6 +93,7 @@ target_link_libraries(3d_player PRIVATE
     user32.lib          # Win32 API
     gdi32.lib           # GDI API
     kernel32.lib        # Windows Kernel API
+    winmm.lib           # Windows Multimedia API
 )
 
 # 链接 FFmpeg

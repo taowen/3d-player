@@ -1,12 +1,18 @@
 #pragma once
 
 #include "rgb_video_decoder.h"
+#include "audio_decoder.h"
 #include "mkv_stream_reader.h"
 #include <memory>
 #include <string>
 #include <queue>
 #include <mutex>
 #include <atomic>
+#include <windows.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+#include <audiopolicy.h>
+#include <wrl/client.h>
 #include <dxgi.h>
 
 // D3D11 headers are already included through rgb_video_decoder.h
@@ -34,6 +40,7 @@ enum class RenderTargetType {
  * - 顺序播放，不支持跳转
  * - 线程安全的帧缓冲管理
  * - 支持测试和生产环境两种渲染目标
+ * - 内置 WASAPI 音频播放支持
  */
 class VideoPlayer {
 public:
@@ -121,8 +128,36 @@ public:
      */
     ID3D11DeviceContext* getD3D11DeviceContext() const;
 
+    /**
+     * @brief 检查是否有音频流
+     * @return true 有音频流，false 没有音频流
+     */
+    bool hasAudio() const;
+    
+    /**
+     * @brief 初始化音频播放器
+     * @return true 成功初始化音频播放器，false 初始化失败
+     */
+    bool initializeAudio();
+    
+    /**
+     * @brief 检查音频播放器是否准备就绪
+     * @return true 音频播放器准备就绪，false 音频播放器未准备就绪
+     */
+    bool isAudioReady() const;
+    
+    /**
+     * @brief 获取音频缓冲区状态（用于测试验证）
+     * @param total_frames 输出：缓冲区总帧数
+     * @param padding_frames 输出：缓冲区中待播放帧数
+     * @param available_frames 输出：可写入帧数
+     * @return true 成功获取状态，false 获取失败
+     */
+    bool getAudioBufferStatus(UINT32& total_frames, UINT32& padding_frames, UINT32& available_frames) const;
+
 private:
     std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
+    std::unique_ptr<AudioDecoder> audio_decoder_;        // 音频解码器
     
     // 帧缓冲管理
     std::queue<RgbVideoDecoder::DecodedRgbFrame> frame_buffer_;
@@ -148,6 +183,22 @@ private:
     ComPtr<ID3D11BlendState> blend_state_;
     ComPtr<ID3D11RasterizerState> raster_state_;
     ComPtr<ID3D11ShaderResourceView> current_texture_srv_;
+    
+    // 音频相关成员
+    std::queue<AudioDecoder::DecodedFrame> audio_buffer_;
+    mutable std::mutex audio_mutex_;
+    bool has_audio_;
+    
+    // WASAPI 音频播放相关成员（合并自 WASAPIAudioPlayer）
+    ComPtr<IMMDevice> audio_device_;
+    ComPtr<IAudioClient> audio_client_;
+    ComPtr<IAudioRenderClient> render_client_;
+    UINT32 buffer_frame_count_;
+    UINT32 sample_rate_;
+    UINT16 audio_channels_;
+    UINT16 bits_per_sample_;
+    std::atomic<bool> is_audio_initialized_;
+    std::atomic<bool> is_audio_playing_;
     
     // 私有方法
     
@@ -204,4 +255,92 @@ private:
      * @param source_texture 源纹理
      */
     void renderFrame(ComPtr<ID3D11Texture2D> source_texture);
+
+    /**
+     * @brief 处理音频帧（在 onTimer 中调用）
+     * @param current_time 当前时间
+     */
+    void handleAudioFrames(double current_time);
+    
+    /**
+     * @brief 预加载音频帧到缓冲区
+     */
+    void preloadAudioFrames();
+    
+    /**
+     * @brief 将音频帧PTS转换为秒数
+     * @param frame 音频帧
+     * @return 时间（秒）
+     */
+    double convertAudioPtsToSeconds(AVFrame* frame) const;
+    
+    // WASAPI 音频播放相关私有方法（合并自 WASAPIAudioPlayer）
+    
+    
+    /**
+     * @brief 初始化 WASAPI 音频播放器
+     * @param sample_rate 采样率 (如 44100)
+     * @param channels 声道数 (如 2)
+     * @param bits_per_sample 位深度 (如 16)
+     * @return true 成功初始化，false 初始化失败
+     */
+    bool initializeWASAPIAudioPlayer(UINT32 sample_rate, UINT16 channels, UINT16 bits_per_sample);
+    
+    
+    /**
+     * @brief 非阻塞写入音频数据
+     * @param frame AVFrame 音频帧数据
+     * @return true 成功写入，false 缓冲区满或写入失败
+     * @note 此方法不会阻塞，如果缓冲区满则立即返回false
+     */
+    bool writeAudioData(AVFrame* frame);
+    
+    
+    /**
+     * @brief 开始音频播放
+     * @return true 成功开始播放，false 开始失败
+     */
+    bool startAudioPlayer();
+    
+    
+    /**
+     * @brief 停止音频播放
+     */
+    void stopAudioPlayer();
+    
+    
+    /**
+     * @brief 关闭音频播放器并释放资源
+     */
+    void closeAudioPlayer();
+    
+    
+    /**
+     * @brief 初始化音频设备
+     * @return true 成功初始化，false 初始化失败
+     */
+    bool initializeAudioDevice();
+    
+    
+    /**
+     * @brief 配置音频客户端
+     * @return true 成功配置，false 配置失败
+     */
+    bool configureAudioClient();
+    
+    
+    /**
+     * @brief 清理音频资源
+     */
+    void cleanupAudioResources();
+    
+    
+    /**
+     * @brief 音频格式转换辅助函数
+     * @param frame 源音频帧
+     * @param buffer 目标缓冲区
+     * @param frames_to_write 要写入的帧数
+     * @return true 成功转换，false 转换失败
+     */
+    bool convertFloatToPcm(AVFrame* frame, BYTE* buffer, UINT32 frames_to_write);
 };

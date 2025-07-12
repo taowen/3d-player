@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../src/hw_video_decoder.h"
+#include <iostream>
 
 extern "C" {
 #include <libavutil/pixfmt.h>

@@ -195,6 +195,14 @@ void VideoPlayer::close() {
     render_target_texture_.Reset();
     render_target_swapchain_.Reset();
     
+    // 释放渲染管线资源
+    fullscreen_vs_.Reset();
+    fullscreen_ps_.Reset();
+    texture_sampler_.Reset();
+    blend_state_.Reset();
+    raster_state_.Reset();
+    current_texture_srv_.Reset();
+    
     // 关闭解码器
     if (rgb_decoder_) {
         rgb_decoder_->close();

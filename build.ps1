@@ -70,5 +70,5 @@ Write-Host ""
 # 根据目标执行后续操作
 if ($RunTests) {
     Write-Host "Running tests..." -ForegroundColor Green
-    & "build\Debug\integration-test.exe"
+    & "build\Debug\integration-test.exe" --success --verbosity high
 } 

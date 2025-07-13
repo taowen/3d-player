@@ -6,7 +6,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <wrl/client.h>
-#include "video_player.h"
+#include "audio_video_player.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -16,8 +16,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 // D3D11 初始化函数声明
 bool createSwapChain(HWND hwnd);
 void cleanupD3D11();
-bool initializeVideoPlayer(const std::string& videoFilePath);
-bool finalizeVideoPlayer();
+bool initializeAudioVideoPlayer(const std::string& videoFilePath);
+bool finalizeAudioVideoPlayer();
 
 // 全局变量
 const int WINDOW_WIDTH = 1280;
@@ -30,8 +30,8 @@ ComPtr<ID3D11Device> g_device;
 ComPtr<ID3D11DeviceContext> g_context;
 ComPtr<IDXGISwapChain> g_swapchain;
 
-// VideoPlayer 实例
-std::unique_ptr<VideoPlayer> g_video_player;
+// AudioVideoPlayer 实例
+std::unique_ptr<AudioVideoPlayer> g_audio_video_player;
 
 // 时间管理
 std::chrono::high_resolution_clock::time_point g_start_time;
@@ -230,9 +230,9 @@ bool createSwapChain(HWND hwnd) {
  * @brief 清理 D3D11 资源
  */
 void cleanupD3D11() {
-    if (g_video_player) {
-        g_video_player->close();
-        g_video_player.reset();
+    if (g_audio_video_player) {
+        g_audio_video_player->close();
+        g_audio_video_player.reset();
     }
     
     g_swapchain.Reset();
@@ -244,22 +244,22 @@ void cleanupD3D11() {
 
 
 /**
- * @brief 初始化 VideoPlayer（第一步：打开文件获取设备）
+ * @brief 初始化 AudioVideoPlayer（第一步：打开文件获取设备）
  * @param videoFilePath 视频文件路径
  * @return bool 成功返回 true，失败返回 false
  */
-bool initializeVideoPlayer(const std::string& videoFilePath) {
-    g_video_player = std::make_unique<VideoPlayer>();
+bool initializeAudioVideoPlayer(const std::string& videoFilePath) {
+    g_audio_video_player = std::make_unique<AudioVideoPlayer>();
     
-    // 第一步：打开视频文件（获取 D3D11 设备）
-    if (!g_video_player->open(videoFilePath)) {
-        std::cerr << "错误：打开视频文件失败: " << videoFilePath << std::endl;
+    // 第一步：打开音视频文件（获取 D3D11 设备）
+    if (!g_audio_video_player->open(videoFilePath)) {
+        std::cerr << "错误：打开音视频文件失败: " << videoFilePath << std::endl;
         return false;
     }
     
-    // 获取 VideoPlayer 创建的设备
-    g_device = g_video_player->getD3D11Device();
-    g_context = g_video_player->getD3D11DeviceContext();
+    // 获取 AudioVideoPlayer 创建的设备
+    g_device = g_audio_video_player->getD3D11Device();
+    g_context = g_audio_video_player->getD3D11DeviceContext();
     
     if (!g_device || !g_context) {
         std::cerr << "错误：获取 D3D11 设备失败" << std::endl;
@@ -270,28 +270,37 @@ bool initializeVideoPlayer(const std::string& videoFilePath) {
     g_device->AddRef();
     g_context->AddRef();
     
-    std::cout << "VideoPlayer 初始化成功" << std::endl;
+    std::cout << "AudioVideoPlayer 初始化成功" << std::endl;
     return true;
 }
 
 
 /**
- * @brief 完成 VideoPlayer 的初始化（第二步：设置交换链渲染目标）
+ * @brief 完成 AudioVideoPlayer 的初始化（第二步：设置交换链渲染目标和音频）
  * @return bool 成功返回 true，失败返回 false
  */
-bool finalizeVideoPlayer() {
-    if (!g_video_player || !g_swapchain) {
-        std::cerr << "错误：VideoPlayer 或交换链未初始化" << std::endl;
+bool finalizeAudioVideoPlayer() {
+    if (!g_audio_video_player || !g_swapchain) {
+        std::cerr << "错误：AudioVideoPlayer 或交换链未初始化" << std::endl;
         return false;
     }
     
     // 第二步：设置交换链渲染目标
-    if (!g_video_player->setRenderTarget(g_swapchain)) {
+    if (!g_audio_video_player->setRenderTarget(g_swapchain)) {
         std::cerr << "错误：设置交换链渲染目标失败" << std::endl;
         return false;
     }
     
-    std::cout << "VideoPlayer 完整初始化成功" << std::endl;
+    // 第三步：初始化音频播放器（如果有音频流）
+    if (g_audio_video_player->hasAudio()) {
+        if (!g_audio_video_player->initializeAudio()) {
+            std::cerr << "警告：音频初始化失败，仅播放视频" << std::endl;
+        } else {
+            std::cout << "音频初始化成功" << std::endl;
+        }
+    }
+    
+    std::cout << "AudioVideoPlayer 完整初始化成功" << std::endl;
     return true;
 }
 
@@ -343,27 +352,27 @@ int main(int argc, char* argv[]) {
     
     std::cout << "窗口创建成功！" << std::endl;
     
-    // 第一步：初始化 VideoPlayer（获取 D3D11 设备）
-    if (!initializeVideoPlayer(videoFilePath)) {
-        std::cerr << "错误：VideoPlayer 初始化失败" << std::endl;
+    // 第一步：初始化 AudioVideoPlayer（获取 D3D11 设备）
+    if (!initializeAudioVideoPlayer(videoFilePath)) {
+        std::cerr << "错误：AudioVideoPlayer 初始化失败" << std::endl;
         return 1;
     }
     
-    // 第二步：创建交换链（使用 VideoPlayer 的设备）
+    // 第二步：创建交换链（使用 AudioVideoPlayer 的设备）
     if (!createSwapChain(hwnd)) {
         std::cerr << "错误：创建交换链失败" << std::endl;
         cleanupD3D11();
         return 1;
     }
     
-    // 第三步：完成 VideoPlayer 初始化（设置交换链）
-    if (!finalizeVideoPlayer()) {
-        std::cerr << "错误：VideoPlayer 完整初始化失败" << std::endl;
+    // 第三步：完成 AudioVideoPlayer 初始化（设置交换链和音频）
+    if (!finalizeAudioVideoPlayer()) {
+        std::cerr << "错误：AudioVideoPlayer 完整初始化失败" << std::endl;
         cleanupD3D11();
         return 1;
     }
     
-    std::cout << "所有组件初始化成功！开始播放视频..." << std::endl;
+    std::cout << "所有组件初始化成功！开始播放音视频..." << std::endl;
     std::cout << "按 ESC 键退出" << std::endl;
     
     // 记录开始时间
@@ -380,18 +389,18 @@ int main(int argc, char* argv[]) {
             auto current_time = std::chrono::high_resolution_clock::now();
             double relative_time = std::chrono::duration<double>(current_time - g_start_time).count();
             
-            // 更新视频播放
-            if (g_video_player) {
-                g_video_player->onTimer(relative_time);
+            // 更新音视频播放
+            if (g_audio_video_player) {
+                g_audio_video_player->onTimer(relative_time);
                 
                 // 检查是否播放结束
-                if (g_video_player->isEOF()) {
-                    std::cout << "视频播放结束" << std::endl;
+                if (g_audio_video_player->isEOF()) {
+                    std::cout << "音视频播放结束" << std::endl;
                     PostQuitMessage(0);
                 }
             }
             
-            // 注意：VideoPlayer 内部已经处理了交换链的 Present 操作
+            // 注意：AudioVideoPlayer 内部已经处理了交换链的 Present 操作
             // 不需要在这里再次调用 Present
             
             // 让出CPU时间片

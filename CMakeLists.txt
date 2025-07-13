@@ -30,11 +30,15 @@ add_executable(integration-test
     src/audio_decoder.cpp
     src/rgb_video_decoder.cpp
     src/video_player.cpp
+    src/audio_player.cpp
+    src/audio_video_player.cpp
     tests/test_mkv_stream_reader.cpp
     tests/test_hw_video_decoder.cpp
     tests/test_audio_decoder.cpp
     tests/test_rgb_video_decoder.cpp
     tests/test_video_player.cpp
+    tests/test_audio_player.cpp
+    tests/test_audio_video_player.cpp
 )
 
 # Link Catch2 to the executable
@@ -74,6 +78,8 @@ add_executable(3d_player
     src/audio_decoder.cpp
     src/rgb_video_decoder.cpp
     src/video_player.cpp
+    src/audio_player.cpp
+    src/audio_video_player.cpp
 )
 
 # 应用编译选项

@@ -83,10 +83,10 @@ Write-Host ""
 if ($RunTests) {
     if ($TestFilter -ne "") {
         Write-Host "Running tests with filter: $TestFilter" -ForegroundColor Green
-        & "build\Debug\integration-test.exe" --success --verbosity high $TestFilter
+        & "build\Debug\integration-test.exe" --success $TestFilter
     } else {
         Write-Host "Running tests..." -ForegroundColor Green
-        & "build\Debug\integration-test.exe" --success --verbosity high
+        & "build\Debug\integration-test.exe" --success
     }
 } else {
     Write-Host "Build completed successfully!" -ForegroundColor Green

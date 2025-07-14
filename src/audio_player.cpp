@@ -133,6 +133,7 @@ void AudioPlayer::close() {
     if (audio_decoder_) {
         audio_decoder_->close();
     }
+    audio_decoder_.reset();
 }
 
 

@@ -78,12 +78,12 @@ bool AudioDecoder::readNextFrame(DecodedFrame& frame) {
 
 
 bool AudioDecoder::isOpen() const {
-    return stream_reader_->isOpen() && codec_context_ != nullptr;
+    return stream_reader_ && stream_reader_->isOpen() && codec_context_ != nullptr;
 }
 
 
 bool AudioDecoder::isEOF() const {
-    return stream_reader_->isEOF();
+    return stream_reader_ && stream_reader_->isEOF();
 }
 
 

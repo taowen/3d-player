@@ -161,6 +161,16 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[audio_vi
 # 构建并运行具体的测试用例
 powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "AudioDecoder basic functionality"
 
+# 发现失败的测试
+# 1. 运行所有测试查看摘要
+build/Debug/integration-test.exe -r compact
+
+# 2. 运行特定测试用例查看详细错误
+build/Debug/integration-test.exe "测试用例名称" -s
+
+# 3. 列出所有可用的测试用例
+build/Debug/integration-test.exe --list-tests
+
 # 构建 3D Player 主程序
 powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
 

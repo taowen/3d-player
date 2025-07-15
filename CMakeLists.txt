@@ -9,9 +9,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Set AddressSanitizer globally before fetching Catch2
+# AddressSanitizer always enabled (needed for external libraries like Catch2)
+message(STATUS "AddressSanitizer enabled globally")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
+
+# Include AddressSanitizer support
+include(cmake/AddressSanitizer.cmake)
 
 # Fetch Catch2 for testing
 include(FetchContent)
@@ -69,6 +73,9 @@ include(cmake/FindFFmpeg.cmake)
 target_link_ffmpeg(integration-test)
 copy_ffmpeg_dlls(integration-test)
 
+# Setup AddressSanitizer for integration-test
+setup_asan(integration-test)
+
 
 # 添加 3d_player 可执行文件
 add_executable(3d_player 
@@ -105,3 +112,6 @@ target_link_libraries(3d_player PRIVATE
 # 链接 FFmpeg
 target_link_ffmpeg(3d_player)
 copy_ffmpeg_dlls(3d_player)
+
+# Setup AddressSanitizer for 3d_player
+setup_asan(3d_player)

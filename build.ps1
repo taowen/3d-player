@@ -21,7 +21,9 @@ Push-Location "build"
 try {
     # 配置项目
     Write-Host "Configuring with CMake..." -ForegroundColor Yellow
-    cmake -S .. -B .
+    Write-Host "AddressSanitizer always enabled" -ForegroundColor Magenta
+    $cmakeArgs = @("-S", "..", "-B", ".")
+    cmake @cmakeArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "CMake configuration failed! Exiting..." -ForegroundColor Red
         exit $LASTEXITCODE

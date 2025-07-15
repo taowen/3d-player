@@ -136,51 +136,51 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 ## 构建测试
 
-我们使用 git bash 的 terminal，要注意 powershell 脚本的执行方式
+我们使用 PowerShell 环境，直接运行 PowerShell 构建脚本
 
-### Git Bash 环境
-```bash
+### PowerShell 环境
+```powershell
 # 构建并运行测试
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test
+.\build.ps1 test
 
 # 构建并运行特定测试用例
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "AudioDecoder*"
+.\build.ps1 test -TestFilter "AudioDecoder*"
 
 # 构建并运行特定标签的测试
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[audio_decoder]"
+.\build.ps1 test -TestFilter "[audio_decoder]"
 
 # 构建并运行音频播放器测试
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[audio_player]"
+.\build.ps1 test -TestFilter "[audio_player]"
 
 # 构建并运行视频播放器测试
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[video_player]"
+.\build.ps1 test -TestFilter "[video_player]"
 
 # 构建并运行音视频播放器测试
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "[audio_video_player]"
+.\build.ps1 test -TestFilter "[audio_video_player]"
 
 # 构建并运行具体的测试用例
-powershell -ExecutionPolicy Bypass -File ./build.ps1 test -TestFilter "AudioDecoder basic functionality"
+.\build.ps1 test -TestFilter "AudioDecoder basic functionality"
 
 # 发现失败的测试
 # 1. 运行所有测试查看摘要
-build/Debug/integration-test.exe -r compact
+.\build\Debug\integration-test.exe -r compact
 
 # 2. 运行特定测试用例查看详细错误
-build/Debug/integration-test.exe "测试用例名称" -s
+.\build\Debug\integration-test.exe "测试用例名称" -s
 
 # 3. 列出所有可用的测试用例
-build/Debug/integration-test.exe --list-tests
+.\build\Debug\integration-test.exe --list-tests
 
 # 构建 3D Player 主程序
-powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
+.\build.ps1 3d_player
 
 # 运行 3D Player（播放视频）
-./build/Debug/3d_player.exe test_data/sample_hw.mkv
+.\build\Debug\3d_player.exe test_data\sample_hw.mkv
 ```
 
-- **测试运行目录**：测试程序在项目根目录 (`3d-player/`) 运行
+- **测试运行目录**：测试程序在项目根目录 (`3d-player\`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
-- **测试文件**：`test_data/sample_hw.mkv` 从项目根目录访问
+- **测试文件**：`test_data\sample_hw.mkv` 从项目根目录访问
 
 ### 测试过滤功能
 支持使用 `-TestFilter` 参数来运行特定的测试用例：
@@ -199,9 +199,10 @@ powershell -ExecutionPolicy Bypass -File ./build.ps1 3d_player
 - **要求**：必须支持 DirectX 11 硬件解码
 - **音频**：自动检测音频流，支持 WASAPI 音频输出
 
-⚠️ **重要：Git Bash 路径问题**
-- Git Bash 使用 Linux 风格路径分隔符 `/`，不认识 Windows 的 `\`
-- 避免路径解析错误：`C:\path\to\file` vs `C:/path/to/file`
+⚠️ **重要：PowerShell 路径规范**
+- PowerShell 原生支持 Windows 路径分隔符 `\`
+- 建议使用反斜杠作为路径分隔符：`test_data\sample_hw.mkv`
+- 可执行文件路径：`.\build\Debug\3d_player.exe`
 
 ---
 

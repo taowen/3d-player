@@ -108,7 +108,8 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 - 支持多种设备：CPU、GPU、NPU
 - 自动库版本选择：Debug 构建使用 `*d.dll`，Release 构建使用标准 DLL
 - 包含所有必需的 TBB（Threading Building Blocks）依赖
-- 提供基础的初始化和设备查询功能测试
+- NPU ONNX 推理：使用简单的加法模型测试 NPU 推理功能
+- 包含测试用 ONNX 模型：`test_data/simple_add.onnx`（两个向量相加）
 
 ### 3D Player 应用程序
 基于 AudioVideoPlayer 组件构建的完整音视频播放应用程序，提供 Windows 窗口播放体验。
@@ -174,7 +175,7 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 # 构建并运行音视频播放器测试
 .\build.ps1 test -TestFilter "[audio_video_player]"
 
-# 构建并运行 OpenVINO 测试
+# 构建并运行 OpenVINO 测试（NPU ONNX 推理）
 .\build.ps1 test -TestFilter "[openvino]"
 
 # 构建并运行具体的测试用例

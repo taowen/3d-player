@@ -43,6 +43,7 @@ add_executable(integration-test
     tests/test_video_player.cpp
     tests/test_audio_player.cpp
     tests/test_audio_video_player.cpp
+    tests/test_openvino.cpp
 )
 
 # Link Catch2 to the executable
@@ -72,6 +73,11 @@ target_link_libraries(integration-test PRIVATE
 include(cmake/FindFFmpeg.cmake)
 target_link_ffmpeg(integration-test)
 copy_ffmpeg_dlls(integration-test)
+
+# 添加 OpenVINO 支持
+include(cmake/FindOpenVINO.cmake)
+target_link_libraries(integration-test PRIVATE openvino::runtime)
+copy_openvino_dlls(integration-test)
 
 # Setup AddressSanitizer for integration-test
 setup_asan(integration-test)
@@ -112,6 +118,10 @@ target_link_libraries(3d_player PRIVATE
 # 链接 FFmpeg
 target_link_ffmpeg(3d_player)
 copy_ffmpeg_dlls(3d_player)
+
+# 链接 OpenVINO
+target_link_libraries(3d_player PRIVATE openvino::runtime)
+copy_openvino_dlls(3d_player)
 
 # Setup AddressSanitizer for 3d_player
 setup_asan(3d_player)

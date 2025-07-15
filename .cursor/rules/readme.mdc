@@ -62,9 +62,16 @@ tests/
 ├── test_audio_player.cpp     # 音频播放器测试
 ├── test_video_player.cpp     # 视频播放器测试
 ├── test_audio_video_player.cpp # 音视频播放器测试
+├── test_openvino.cpp         # OpenVINO 集成测试
 test_data/
 ├── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
 └── sample_with_audio.mkv     # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码，包含AAC音频
+cmake/
+├── FindFFmpeg.cmake          # FFmpeg 库查找和配置
+├── FindOpenVINO.cmake        # OpenVINO 库查找和配置
+└── AddressSanitizer.cmake    # AddressSanitizer 配置
+deps/
+└── openvino_toolkit_windows_2025.2.0.19140.c01cd93e24d_x86_64/ # OpenVINO 运行时库
 build.ps1                     # PowerShell构建脚本
 ```
 
@@ -93,6 +100,15 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 ### AudioVideoPlayer
 音视频播放器，组合 AudioPlayer 和 VideoPlayer 功能。提供统一的接口管理音频和视频播放，支持时间驱动的音视频同步播放。
 详细接口请参考 `src/audio_video_player.h`。
+
+### OpenVINO 集成
+项目已集成 Intel OpenVINO 2025.2.0，支持 CPU、GPU、NPU 设备上的 AI 推理。OpenVINO 库会根据构建类型（Debug/Release）自动选择对应版本的 DLL 文件。
+
+**核心特性**：
+- 支持多种设备：CPU、GPU、NPU
+- 自动库版本选择：Debug 构建使用 `*d.dll`，Release 构建使用标准 DLL
+- 包含所有必需的 TBB（Threading Building Blocks）依赖
+- 提供基础的初始化和设备查询功能测试
 
 ### 3D Player 应用程序
 基于 AudioVideoPlayer 组件构建的完整音视频播放应用程序，提供 Windows 窗口播放体验。
@@ -157,6 +173,9 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 # 构建并运行音视频播放器测试
 .\build.ps1 test -TestFilter "[audio_video_player]"
+
+# 构建并运行 OpenVINO 测试
+.\build.ps1 test -TestFilter "[openvino]"
 
 # 构建并运行具体的测试用例
 .\build.ps1 test -TestFilter "AudioDecoder basic functionality"

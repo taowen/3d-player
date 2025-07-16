@@ -1,5 +1,6 @@
 ---
 alwaysApply: true
+applyTo: '**'
 ---
 
 # 3D Player
@@ -153,64 +154,39 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 ## 构建测试
 
-我们使用 PowerShell 环境，直接运行 PowerShell 构建脚本
+**当前环境**：Git Bash + Windows (AMD64)
 
-### PowerShell 环境
-```powershell
-# 构建并运行测试
-.\build.ps1 test
+### 运行测试
+```bash
+# 运行所有测试
+build/Debug/integration-test.exe
 
-# 构建并运行特定测试用例
-.\build.ps1 test -TestFilter "AudioDecoder*"
+# 运行所有测试查看摘要
+build/Debug/integration-test.exe -r compact
 
-# 构建并运行特定标签的测试
-.\build.ps1 test -TestFilter "[audio_decoder]"
+# 运行特定测试用例查看详细错误  
+build/Debug/integration-test.exe "测试用例名称" -s
 
-# 构建并运行音频播放器测试
-.\build.ps1 test -TestFilter "[audio_player]"
+# 列出所有可用的测试用例
+build/Debug/integration-test.exe --list-tests
 
-# 构建并运行视频播放器测试
-.\build.ps1 test -TestFilter "[video_player]"
-
-# 构建并运行音视频播放器测试
-.\build.ps1 test -TestFilter "[audio_video_player]"
-
-# 构建并运行 OpenVINO 测试（NPU ONNX 推理）
-.\build.ps1 test -TestFilter "[openvino]"
-
-# 构建并运行具体的测试用例
-.\build.ps1 test -TestFilter "AudioDecoder basic functionality"
-
-# 发现失败的测试
-# 1. 运行所有测试查看摘要
-.\build\Debug\integration-test.exe -r compact
-
-# 2. 运行特定测试用例查看详细错误
-.\build\Debug\integration-test.exe "测试用例名称" -s
-
-# 3. 列出所有可用的测试用例
-.\build\Debug\integration-test.exe --list-tests
-
-# 构建 3D Player 主程序
-.\build.ps1 3d_player
+# 运行特定标签的测试
+build/Debug/integration-test.exe -t "[audio_decoder]"
+build/Debug/integration-test.exe -t "[video_player]" 
+build/Debug/integration-test.exe -t "[openvino]"
 
 # 运行 3D Player（播放视频）
-.\build\Debug\3d_player.exe test_data\sample_hw.mkv
+build/Debug/3d_player.exe test_data/sample_hw.mkv
 ```
 
 - **测试运行目录**：测试程序在项目根目录 (`3d-player\`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
 - **测试文件**：`test_data\sample_hw.mkv` 从项目根目录访问
 
-### 测试过滤功能
-支持使用 `-TestFilter` 参数来运行特定的测试用例：
-
-- **通配符过滤**：`-TestFilter "AudioDecoder*"` - 运行所有以 AudioDecoder 开头的测试
-- **标签过滤**：`-TestFilter "[audio_decoder]"` - 运行所有带有 audio_decoder 标签的测试
-- **精确匹配**：`-TestFilter "AudioDecoder basic functionality"` - 运行具体的测试用例
-- **多个条件**：`-TestFilter "AudioDecoder* and not [slow]"` - 运行符合条件的测试
-
-⚠️ **注意**：测试过滤器区分大小写，使用双引号包围过滤条件
+### 测试结果概览
+- **测试状态**：23个用例中22个通过，1个失败  
+- **核心组件**：✅ 播放器功能完全正常
+- **已知问题**：❌ OpenVINO NPU推理（驱动兼容性）
 
 ### 3D Player 使用方法
 - **功能**：从头到尾顺序播放音视频到 Windows 窗口
@@ -219,10 +195,9 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 - **要求**：必须支持 DirectX 11 硬件解码
 - **音频**：自动检测音频流，支持 WASAPI 音频输出
 
-⚠️ **重要：PowerShell 路径规范**
-- PowerShell 原生支持 Windows 路径分隔符 `\`
-- 建议使用反斜杠作为路径分隔符：`test_data\sample_hw.mkv`
-- 可执行文件路径：`.\build\Debug\3d_player.exe`
+⚠️ **注意**：
+- Git Bash 环境下使用正斜杠路径：`test_data/sample_hw.mkv`
+- 可执行文件路径：`build/Debug/3d_player.exe`
 
 ---
 

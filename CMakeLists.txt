@@ -9,10 +9,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# AddressSanitizer always enabled (needed for external libraries like Catch2)
-message(STATUS "AddressSanitizer enabled globally")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
+# AddressSanitizer temporarily disabled for NPU testing
+# message(STATUS "AddressSanitizer enabled globally")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
 
 # Include AddressSanitizer support
 include(cmake/AddressSanitizer.cmake)

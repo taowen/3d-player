@@ -156,6 +156,19 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 
 **当前环境**：Git Bash + Windows (AMD64)
 
+### 编译构建
+```bash
+# 执行构建脚本
+powershell -ExecutionPolicy Bypass -File build.ps1
+
+# 如果遇到 CMake 缓存问题，先清理 build 目录
+rm -rf build && powershell -ExecutionPolicy Bypass -File build.ps1
+```
+
+**编译输出**：
+- 测试程序：`build/Debug/integration-test.exe`
+- 3D播放器：`build/Debug/3d_player.exe`
+
 ### 运行测试
 ```bash
 # 运行所有测试
@@ -175,6 +188,9 @@ build/Debug/integration-test.exe -t "[audio_decoder]"
 build/Debug/integration-test.exe -t "[video_player]" 
 build/Debug/integration-test.exe -t "[openvino]"
 
+# 运行 TensorRT 测试（需要 CUDA GPU + TensorRT 支持）
+build/Debug/integration-test.exe "TensorRT ONNX inference" -s
+
 # 运行 3D Player（播放视频）
 build/Debug/3d_player.exe test_data/sample_hw.mkv
 ```
@@ -186,7 +202,16 @@ build/Debug/3d_player.exe test_data/sample_hw.mkv
 ### 测试结果概览
 - **测试状态**：23个用例中22个通过，1个失败  
 - **核心组件**：✅ 播放器功能完全正常
-- **已知问题**：❌ OpenVINO NPU推理（驱动兼容性）
+- **已知问题**：
+  - ❌ OpenVINO NPU推理（驱动兼容性）
+  - ❌ TensorRT ONNX 推理（优化配置文件设置失败）
+
+### TensorRT 测试状态
+- **模型支持**：✅ ONNX 模型解析成功
+- **动态形状检测**：✅ 正确识别动态输入 (-1, 4, -1, -1)
+- **已知问题**：❌ 优化配置文件添加失败 (config->addOptimizationProfile 失败)
+- **测试用例**：`tests/test_tensorrt.cpp`
+- **参考实现**：`../spike/src/infer_iw3.cpp`
 
 ### 3D Player 使用方法
 - **功能**：从头到尾顺序播放音视频到 Windows 窗口

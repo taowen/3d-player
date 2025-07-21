@@ -43,7 +43,7 @@ add_executable(integration-test
     tests/test_video_player.cpp
     tests/test_audio_player.cpp
     tests/test_audio_video_player.cpp
-    tests/test_openvino.cpp
+    tests/test_tensorrt.cpp
 )
 
 # Link Catch2 to the executable
@@ -74,10 +74,14 @@ include(cmake/FindFFmpeg.cmake)
 target_link_ffmpeg(integration-test)
 copy_ffmpeg_dlls(integration-test)
 
-# 添加 OpenVINO 支持
-include(cmake/FindOpenVINO.cmake)
-target_link_libraries(integration-test PRIVATE openvino::runtime)
-copy_openvino_dlls(integration-test)
+# 添加 CUDA 支持
+find_package(CUDAToolkit REQUIRED)
+
+# 添加 TensorRT 支持
+include(cmake/FindTensorRT.cmake)
+target_link_tensorrt(integration-test)
+target_link_libraries(integration-test PRIVATE CUDA::cudart)
+copy_tensorrt_dlls(integration-test)
 
 # Setup AddressSanitizer for integration-test
 setup_asan(integration-test)
@@ -119,9 +123,10 @@ target_link_libraries(3d_player PRIVATE
 target_link_ffmpeg(3d_player)
 copy_ffmpeg_dlls(3d_player)
 
-# 链接 OpenVINO
-target_link_libraries(3d_player PRIVATE openvino::runtime)
-copy_openvino_dlls(3d_player)
+# 链接 TensorRT
+target_link_tensorrt(3d_player)
+target_link_libraries(3d_player PRIVATE CUDA::cudart)
+copy_tensorrt_dlls(3d_player)
 
 # Setup AddressSanitizer for 3d_player
 setup_asan(3d_player)

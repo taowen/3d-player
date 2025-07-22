@@ -36,6 +36,8 @@ add_executable(integration-test
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp
+    src/stereo_video_decoder.cpp
+    src/tensorrt_utils.cpp
     tests/test_mkv_stream_reader.cpp
     tests/test_hw_video_decoder.cpp
     tests/test_audio_decoder.cpp
@@ -44,6 +46,8 @@ add_executable(integration-test
     tests/test_audio_player.cpp
     tests/test_audio_video_player.cpp
     tests/test_tensorrt.cpp
+    tests/test_d3d11_cuda_interop.cpp
+    tests/test_stereo_video_decoder.cpp
 )
 
 # Link Catch2 to the executable

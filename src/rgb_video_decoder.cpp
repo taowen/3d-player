@@ -164,7 +164,7 @@ bool RgbVideoDecoder::initializeVideoProcessor() {
     texture_desc.Usage = D3D11_USAGE_DEFAULT;
     texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     texture_desc.CPUAccessFlags = 0;
-    texture_desc.MiscFlags = 0;
+    texture_desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
     
     hr = d3d11_device->CreateTexture2D(&texture_desc, nullptr, &rgb_texture_);
     if (FAILED(hr)) {

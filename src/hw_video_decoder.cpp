@@ -1,10 +1,18 @@
 #include "hw_video_decoder.h"
 #include <iostream>
 
+// D3D11 and CUDA headers
+#include <d3d11.h>
+#include <dxgi.h>
+#include <wrl/client.h>
+#include <cuda_runtime_api.h>
+#include <cuda_d3d11_interop.h>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixfmt.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/hwcontext_d3d11va.h>
 }
 
 // Helper function for error string conversion on Windows
@@ -119,10 +127,75 @@ bool HwVideoDecoder::initializeHardwareDecoder() {
         return false;
     }
     
-    // Create D3D11VA hardware device context
-    int ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);
+    // 创建使用 CUDA 兼容适配器的 D3D11VA 硬件设备上下文
+    hw_device_ctx_ = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA);
+    if (!hw_device_ctx_) {
+        std::cerr << "Failed to allocate D3D11VA device context" << std::endl;
+        return false;
+    }
+    
+    AVHWDeviceContext* device_ctx = (AVHWDeviceContext*)hw_device_ctx_->data;
+    AVD3D11VADeviceContext* d3d11va_ctx = (AVD3D11VADeviceContext*)device_ctx->hwctx;
+    
+    // 枚举所有适配器，找到支持 CUDA 的适配器
+    Microsoft::WRL::ComPtr<IDXGIFactory> factory;
+    HRESULT hr = CreateDXGIFactory(__uuidof(IDXGIFactory), &factory);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create DXGI factory" << std::endl;
+        av_buffer_unref(&hw_device_ctx_);
+        return false;
+    }
+    
+    Microsoft::WRL::ComPtr<IDXGIAdapter> cuda_compatible_adapter;
+    bool found_cuda_adapter = false;
+    
+    for (UINT adapter_index = 0; ; ++adapter_index) {
+        Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
+        if (FAILED(factory->EnumAdapters(adapter_index, &adapter))) {
+            break; // 没有更多适配器
+        }
+        
+        // 检查这个适配器是否支持 CUDA
+        int cuda_device = -1;
+        cudaError_t cuda_err = cudaD3D11GetDevice(&cuda_device, adapter.Get());
+        if (cuda_err == cudaSuccess) {
+            cuda_compatible_adapter = adapter;
+            found_cuda_adapter = true;
+            std::cout << "Using CUDA-compatible adapter " << adapter_index << " for FFmpeg D3D11VA" << std::endl;
+            break;
+        }
+    }
+    
+    if (!found_cuda_adapter) {
+        std::cerr << "No CUDA-compatible adapter found for D3D11VA" << std::endl;
+        av_buffer_unref(&hw_device_ctx_);
+        return false;
+    }
+    
+    // 使用 CUDA 兼容适配器创建 D3D11 设备
+    hr = D3D11CreateDevice(
+        cuda_compatible_adapter.Get(),  // 使用 CUDA 兼容的适配器
+        D3D_DRIVER_TYPE_UNKNOWN,        // 必须是 UNKNOWN 当指定适配器时
+        nullptr,
+        0,
+        nullptr, 0,
+        D3D11_SDK_VERSION,
+        &d3d11va_ctx->device,
+        nullptr,
+        &d3d11va_ctx->device_context
+    );
+    
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create D3D11 device with CUDA-compatible adapter" << std::endl;
+        av_buffer_unref(&hw_device_ctx_);
+        return false;
+    }
+    
+    // 初始化设备上下文
+    int ret = av_hwdevice_ctx_init(hw_device_ctx_);
     if (ret < 0) {
-        std::cerr << "Failed to create D3D11VA device context: " << av_err2str_cpp(ret) << std::endl;
+        std::cerr << "Failed to initialize D3D11VA device context: " << av_err2str_cpp(ret) << std::endl;
+        av_buffer_unref(&hw_device_ctx_);
         return false;
     }
     

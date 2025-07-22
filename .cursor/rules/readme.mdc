@@ -55,6 +55,10 @@ src/
 ├── video_player.cpp          # 视频播放器实现
 ├── audio_video_player.h      # 音视频播放器头文件
 ├── audio_video_player.cpp    # 音视频播放器实现
+├── stereo_video_decoder.h    # 立体视频解码器头文件
+├── stereo_video_decoder.cpp  # 立体视频解码器实现
+├── tensorrt_utils.h          # TensorRT工具函数头文件
+├── tensorrt_utils.cpp        # TensorRT工具函数实现
 tests/
 ├── test_mkv_stream_reader.cpp # MKV流读取器测试
 ├── test_hw_video_decoder.cpp  # 硬件视频解码器测试
@@ -63,16 +67,16 @@ tests/
 ├── test_audio_player.cpp     # 音频播放器测试
 ├── test_video_player.cpp     # 视频播放器测试
 ├── test_audio_video_player.cpp # 音视频播放器测试
-├── test_openvino.cpp         # OpenVINO 集成测试
+├── test_tensorrt.cpp         # TensorRT 集成测试
+├── test_d3d11_cuda_interop.cpp # D3D11-CUDA互操作测试
+├── test_stereo_video_decoder.cpp # 立体视频解码器测试
 test_data/
 ├── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
 └── sample_with_audio.mkv     # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码，包含AAC音频
 cmake/
 ├── FindFFmpeg.cmake          # FFmpeg 库查找和配置
-├── FindOpenVINO.cmake        # OpenVINO 库查找和配置
+├── FindTensorRT.cmake        # TensorRT 库查找和配置
 └── AddressSanitizer.cmake    # AddressSanitizer 配置
-deps/
-└── openvino_toolkit_windows_2025.2.0.19140.c01cd93e24d_x86_64/ # OpenVINO 运行时库
 build.ps1                     # PowerShell构建脚本
 ```
 
@@ -102,15 +106,13 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 音视频播放器，组合 AudioPlayer 和 VideoPlayer 功能。提供统一的接口管理音频和视频播放，支持时间驱动的音视频同步播放。
 详细接口请参考 `src/audio_video_player.h`。
 
-### OpenVINO 集成
-项目已集成 Intel OpenVINO 2025.2.0，支持 CPU、GPU、NPU 设备上的 AI 推理。OpenVINO 库会根据构建类型（Debug/Release）自动选择对应版本的 DLL 文件。
+### StereoVideoDecoder
+立体视频解码器，基于 RgbVideoDecoder 并集成 TensorRT 推理功能。将普通RGB视频帧转换为立体视觉输出，支持GPU加速的深度学习推理。
+详细接口请参考 `src/stereo_video_decoder.h`。
 
-**核心特性**：
-- 支持多种设备：CPU、GPU、NPU
-- 自动库版本选择：Debug 构建使用 `*d.dll`，Release 构建使用标准 DLL
-- 包含所有必需的 TBB（Threading Building Blocks）依赖
-- NPU ONNX 推理：使用简单的加法模型测试 NPU 推理功能
-- 包含测试用 ONNX 模型：`test_data/simple_add.onnx`（两个向量相加）
+### TensorRTUtils
+TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创建、引擎缓存加载等功能。支持Logger日志记录和错误处理。
+详细接口请参考 `src/tensorrt_utils.h`。
 
 ### 3D Player 应用程序
 基于 AudioVideoPlayer 组件构建的完整音视频播放应用程序，提供 Windows 窗口播放体验。
@@ -186,7 +188,7 @@ build/Debug/integration-test.exe --list-tests
 # 运行特定标签的测试
 build/Debug/integration-test.exe -t "[audio_decoder]"
 build/Debug/integration-test.exe -t "[video_player]" 
-build/Debug/integration-test.exe -t "[openvino]"
+build/Debug/integration-test.exe -t "[tensorrt]"
 
 # 运行 TensorRT 测试（需要 CUDA GPU + TensorRT 支持）
 build/Debug/integration-test.exe "TensorRT ONNX inference" -s
@@ -200,17 +202,19 @@ build/Debug/3d_player.exe test_data/sample_hw.mkv
 - **测试文件**：`test_data\sample_hw.mkv` 从项目根目录访问
 
 ### 测试结果概览
-- **测试状态**：23个用例中22个通过，1个失败  
+- **测试状态**：25个用例中23个通过，2个失败  
 - **核心组件**：✅ 播放器功能完全正常
+- **TensorRT推理**：✅ 单独推理测试通过
 - **已知问题**：
-  - ❌ OpenVINO NPU推理（驱动兼容性）
-  - ❌ TensorRT ONNX 推理（优化配置文件设置失败）
+  - ❌ D3D11纹理像素读取（测试环境限制）
+  - ❌ 立体视频解码器推理失败（内存访问错误）
 
 ### TensorRT 测试状态
-- **模型支持**：✅ ONNX 模型解析成功
-- **动态形状检测**：✅ 正确识别动态输入 (-1, 4, -1, -1)
-- **已知问题**：❌ 优化配置文件添加失败 (config->addOptimizationProfile 失败)
-- **测试用例**：`tests/test_tensorrt.cpp`
+- **引擎加载**：✅ 从缓存成功加载TensorRT引擎
+- **推理执行**：✅ 单独推理测试完全正常（21ms）
+- **CUDA互操作**：✅ D3D11-CUDA资源互操作正常
+- **已知问题**：❌ 立体视频解码器中推理失败（CUDA内存访问违规）
+- **测试用例**：`tests/test_tensorrt.cpp`、`tests/test_stereo_video_decoder.cpp`
 - **参考实现**：`../spike/src/infer_iw3.cpp`
 
 ### 3D Player 使用方法

@@ -160,12 +160,19 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 ### 编译构建
 ```bash
-# 执行构建脚本
+# 构建测试程序（默认）
 powershell -ExecutionPolicy Bypass -File build.ps1
+
+# 构建 3D Player 程序
+powershell -ExecutionPolicy Bypass -File build.ps1 3d_player
 
 # 如果遇到 CMake 缓存问题，先清理 build 目录
 rm -rf build && powershell -ExecutionPolicy Bypass -File build.ps1
 ```
+
+**支持的构建目标**：
+- `test` - 构建测试程序（默认）
+- `3d_player` - 构建 3D Player 可执行文件
 
 **编译输出**：
 - 测试程序：`build/Debug/integration-test.exe`
@@ -200,22 +207,6 @@ build/Debug/3d_player.exe test_data/sample_hw.mkv
 - **测试运行目录**：测试程序在项目根目录 (`3d-player\`) 运行
 - **文件路径**：测试中所有相对路径都是相对于项目根目录的
 - **测试文件**：`test_data\sample_hw.mkv` 从项目根目录访问
-
-### 测试结果概览
-- **测试状态**：25个用例中23个通过，2个失败  
-- **核心组件**：✅ 播放器功能完全正常
-- **TensorRT推理**：✅ 单独推理测试通过
-- **已知问题**：
-  - ❌ D3D11纹理像素读取（测试环境限制）
-  - ❌ 立体视频解码器推理失败（内存访问错误）
-
-### TensorRT 测试状态
-- **引擎加载**：✅ 从缓存成功加载TensorRT引擎
-- **推理执行**：✅ 单独推理测试完全正常（21ms）
-- **CUDA互操作**：✅ D3D11-CUDA资源互操作正常
-- **已知问题**：❌ 立体视频解码器中推理失败（CUDA内存访问违规）
-- **测试用例**：`tests/test_tensorrt.cpp`、`tests/test_stereo_video_decoder.cpp`
-- **参考实现**：`../spike/src/infer_iw3.cpp`
 
 ### 3D Player 使用方法
 - **功能**：从头到尾顺序播放音视频到 Windows 窗口

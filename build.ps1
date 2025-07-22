@@ -1,6 +1,5 @@
 param(
-    [string]$Target = "test",
-    [string]$TestFilter = ""
+    [string]$Target = "integration-test"
 )
 
 # 设置错误处理
@@ -29,45 +28,9 @@ try {
         exit $LASTEXITCODE
     }
 
-    # 根据参数设置构建目标和描述
-    $BuildTarget = ""
-    $BuildDesc = ""
-    $RunTests = $false
-
-    switch ($Target.ToLower()) {
-        "test" {
-            $BuildTarget = "integration-test"
-            $BuildDesc = "test target"
-            $RunTests = $true
-        }
-        "3d_player" {
-            $BuildTarget = "3d_player"
-            $BuildDesc = "3d_player target"
-            $RunTests = $false
-        }
-        default {
-            Write-Host "Unknown target: $Target" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Usage: .\build.ps1 [target] [-TestFilter <filter>]" -ForegroundColor White
-            Write-Host "Available targets:" -ForegroundColor White
-            Write-Host "  test       - Build and run tests (default)" -ForegroundColor White
-            Write-Host "  3d_player  - Build 3d_player executable" -ForegroundColor White
-            Write-Host ""
-            Write-Host "Test filter examples:" -ForegroundColor White
-            Write-Host "  -TestFilter 'AudioDecoder*'           - Run all AudioDecoder tests" -ForegroundColor White
-            Write-Host "  -TestFilter '[audio_decoder]'         - Run tests with audio_decoder tag" -ForegroundColor White
-            Write-Host "  -TestFilter 'AudioDecoder basic functionality' - Run specific test case" -ForegroundColor White
-            exit 1
-        }
-    }
-
     # 执行构建
-    Write-Host "Building $BuildDesc..." -ForegroundColor Yellow
-    if ($BuildTarget -eq "") {
-        cmake --build . --config Debug
-    } else {
-        cmake --build . --config Debug --target $BuildTarget
-    }
+    Write-Host "Building $Target..." -ForegroundColor Yellow
+    cmake --build . --config Debug --target $Target
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed! Exiting..." -ForegroundColor Red
@@ -81,20 +44,4 @@ try {
 
 Write-Host ""
 
-# 根据目标执行后续操作
-if ($RunTests) {
-    if ($TestFilter -ne "") {
-        Write-Host "Running tests with filter: $TestFilter" -ForegroundColor Green
-        & "build\Debug\integration-test.exe" --success $TestFilter
-    } else {
-        Write-Host "Running tests..." -ForegroundColor Green
-        & "build\Debug\integration-test.exe" --success
-    }
-} else {
-    Write-Host "Build completed successfully!" -ForegroundColor Green
-    if ($Target.ToLower() -eq "3d_player") {
-        Write-Host ""
-        Write-Host "Usage: .\build\Debug\3d_player.exe <video_file_path>" -ForegroundColor White
-        Write-Host "Example: .\build\Debug\3d_player.exe test_data\sample_hw.mkv" -ForegroundColor White
-    }
-} 
+Write-Host "Build completed successfully!" -ForegroundColor Green

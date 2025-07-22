@@ -249,8 +249,11 @@ bool HwVideoDecoder::initializeHardwareDecoder() {
         return false;
     }
     
-    // Set hardware device context - FFmpeg will auto-create frames context and buffer pool
+    // Set hardware device context - FFmpeg will auto-create frames context and buffer pool  
     codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+    
+    // 设置extra_hw_frames来增加缓冲池大小，解决缓冲池耗尽问题
+    codec_context_->extra_hw_frames = 80;  // 额外增加80个缓冲区（默认20+80=100个）
     
     // 设置硬件解码的格式回调函数，只允许硬件解码
     codec_context_->get_format = [](AVCodecContext* /*ctx*/, const enum AVPixelFormat* pix_fmts) -> enum AVPixelFormat {

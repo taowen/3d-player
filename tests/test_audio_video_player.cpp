@@ -47,13 +47,17 @@ TEST_CASE("AudioVideoPlayer basic functionality", "[audio_video_player]") {
         REQUIRE(context != nullptr);
         
         // 获取视频尺寸
-        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-        REQUIRE(rgb_decoder != nullptr);
+        VideoPlayer* video_player = player.getVideoPlayer();
+        REQUIRE(video_player != nullptr);
+        int width = video_player->getWidth();
+        int height = video_player->getHeight();
+        REQUIRE(width > 0);
+        REQUIRE(height > 0);
         
         // 创建测试用的渲染目标纹理
         D3D11_TEXTURE2D_DESC render_target_desc = {};
-        render_target_desc.Width = rgb_decoder->getWidth();
-        render_target_desc.Height = rgb_decoder->getHeight();
+        render_target_desc.Width = width;
+        render_target_desc.Height = height;
         render_target_desc.MipLevels = 1;
         render_target_desc.ArraySize = 1;
         render_target_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -88,8 +92,8 @@ TEST_CASE("AudioVideoPlayer basic functionality", "[audio_video_player]") {
             std::vector<uint8_t> pixels = readTexturePixels(device, context, render_target.Get());
             
             // 如果像素数据有效，说明发生了渲染
-            int width = rgb_decoder->getWidth();
-            int height = rgb_decoder->getHeight();
+            int texture_width = video_player->getWidth();
+            int texture_height = video_player->getHeight();
             if (!pixels.empty() && isValidPixelData(pixels, width, height)) {
                 // 检查是否是新的一帧（与之前的帧不同）
                 bool is_new_frame = frame_pixels.empty();
@@ -173,13 +177,17 @@ TEST_CASE("AudioVideoPlayer with audio functionality", "[audio_video_player]") {
             REQUIRE(context != nullptr);
             
             // 获取视频尺寸
-            RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-            REQUIRE(rgb_decoder != nullptr);
+            VideoPlayer* video_player_inner = player.getVideoPlayer();
+            REQUIRE(video_player_inner != nullptr);
+            int video_width = video_player_inner->getWidth();
+            int video_height = video_player_inner->getHeight();
+            REQUIRE(video_width > 0);
+            REQUIRE(video_height > 0);
             
             // 创建测试用的渲染目标纹理
             D3D11_TEXTURE2D_DESC render_target_desc = {};
-            render_target_desc.Width = rgb_decoder->getWidth();
-            render_target_desc.Height = rgb_decoder->getHeight();
+            render_target_desc.Width = video_width;
+            render_target_desc.Height = video_height;
             render_target_desc.MipLevels = 1;
             render_target_desc.ArraySize = 1;
             render_target_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -230,9 +238,9 @@ TEST_CASE("AudioVideoPlayer with audio functionality", "[audio_video_player]") {
                 std::vector<uint8_t> pixels = readTexturePixels(device, context, render_target.Get());
                 
                 // 如果像素数据有效，说明发生了渲染
-                int width = rgb_decoder->getWidth();
-                int height = rgb_decoder->getHeight();
-                if (!pixels.empty() && isValidPixelData(pixels, width, height)) {
+                int frame_width = video_player_inner->getWidth();
+                int frame_height = video_player_inner->getHeight();
+                if (!pixels.empty() && isValidPixelData(pixels, frame_width, frame_height)) {
                     frame_count++;
                     std::cout << "Frame " << frame_count << " at time " << current_time << "s" << std::endl;
                 }
@@ -275,8 +283,8 @@ TEST_CASE("AudioVideoPlayer component access", "[audio_video_player]") {
         REQUIRE(audio_player != nullptr);
         
         // 测试解码器访问
-        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-        REQUIRE(rgb_decoder != nullptr);
+        StereoVideoDecoder* stereo_decoder = player.getStereoDecoder();
+        REQUIRE(stereo_decoder != nullptr);
         
         // 测试 D3D11 设备访问
         ID3D11Device* device = player.getD3D11Device();

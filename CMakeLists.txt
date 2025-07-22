@@ -101,6 +101,8 @@ add_executable(3d_player
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp
+    src/stereo_video_decoder.cpp
+    src/tensorrt_utils.cpp
 )
 
 # 应用编译选项

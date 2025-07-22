@@ -103,13 +103,15 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
         REQUIRE(context != nullptr);
         
         // 获取视频尺寸
-        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-        REQUIRE(rgb_decoder != nullptr);
+        int width = player.getWidth();
+        int height = player.getHeight();
+        REQUIRE(width > 0);
+        REQUIRE(height > 0);
         
         // 创建测试用的渲染目标纹理
         D3D11_TEXTURE2D_DESC render_target_desc = {};
-        render_target_desc.Width = rgb_decoder->getWidth();
-        render_target_desc.Height = rgb_decoder->getHeight();
+        render_target_desc.Width = width;
+        render_target_desc.Height = height;
         render_target_desc.MipLevels = 1;
         render_target_desc.ArraySize = 1;
         render_target_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -144,9 +146,9 @@ TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_play
             std::vector<uint8_t> pixels = readTexturePixels(device, context, render_target.Get());
             
             // 如果像素数据有效，说明发生了渲染
-            int width = rgb_decoder->getWidth();
-            int height = rgb_decoder->getHeight();
-            if (!pixels.empty() && isValidPixelData(pixels, width, height)) {
+            int texture_width = player.getWidth();
+            int texture_height = player.getHeight();
+            if (!pixels.empty() && isValidPixelData(pixels, texture_width, texture_height)) {
                 // 检查是否是新的一帧（与之前的帧不同）
                 bool is_new_frame = frame_pixels.empty();
                 if (!is_new_frame && !frame_pixels.empty()) {

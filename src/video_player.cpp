@@ -13,7 +13,7 @@ extern "C" {
 
 
 VideoPlayer::VideoPlayer() 
-    : rgb_decoder_(std::make_unique<RgbVideoDecoder>()) {
+    : stereo_decoder_(std::make_unique<StereoVideoDecoder>()) {
 }
 
 
@@ -27,34 +27,14 @@ bool VideoPlayer::open(const std::string& filepath) {
         close();
     }
     
-    // 打开 RGB 解码器
-    if (!rgb_decoder_->open(filepath)) {
-        std::cerr << "Failed to open RGB decoder for: " << filepath << std::endl;
+    // 打开立体解码器
+    if (!stereo_decoder_->open(filepath)) {
+        std::cerr << "Failed to open stereo decoder for: " << filepath << std::endl;
         return false;
     }
     
-    // 获取视频信息
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        std::cerr << "Failed to get hardware decoder" << std::endl;
-        close();
-        return false;
-    }
-    
-    MKVStreamReader* stream_reader = hw_decoder->getStreamReader();
-    if (!stream_reader) {
-        std::cerr << "Failed to get stream reader" << std::endl;
-        close();
-        return false;
-    }
-    
-    // 获取流信息以计算时间戳
-    stream_info_ = stream_reader->getStreamInfo();
-    if (stream_info_.video_stream_index < 0) {
-        std::cerr << "No video stream found" << std::endl;
-        close();
-        return false;
-    }
+    // StereoVideoDecoder 不暴露内部实现细节，无需获取底层组件
+    // 时间戳信息将通过 DecodedStereoFrame 的 pts_seconds 字段获取
     
     return true;
 }
@@ -126,7 +106,7 @@ void VideoPlayer::onTimer(double current_time) {
     
     while (!frame_buffer_.empty()) {
         auto& front_frame = frame_buffer_.front();
-        double frame_time = convertPtsToSeconds(front_frame.hw_frame.frame);
+        double frame_time = front_frame.pts_seconds;
         
         if (frame_time <= current_time) {
             // 时间已到，切换到这一帧
@@ -136,11 +116,10 @@ void VideoPlayer::onTimer(double current_time) {
             }
             
             // 设置新的当前帧
-            current_frame_texture_ = front_frame.rgb_texture;
+            current_frame_texture_ = front_frame.stereo_texture;
             current_frame_time_ = frame_time;
             
-            // 释放硬件帧内存
-            av_frame_free(&front_frame.hw_frame.frame);
+            // StereoVideoDecoder 自动管理内存，无需手动释放
             frame_buffer_.pop();
             
             need_render = true;
@@ -171,8 +150,6 @@ void VideoPlayer::close() {
     
     // 清空帧缓冲
     while (!frame_buffer_.empty()) {
-        auto& frame = frame_buffer_.front();
-        av_frame_free(&frame.hw_frame.frame);
         frame_buffer_.pop();
     }
     
@@ -194,14 +171,14 @@ void VideoPlayer::close() {
     current_texture_srv_.Reset();
     
     // 关闭解码器
-    if (rgb_decoder_) {
-        rgb_decoder_->close();
+    if (stereo_decoder_) {
+        stereo_decoder_->close();
     }
 }
 
 
 bool VideoPlayer::isOpen() const {
-    return rgb_decoder_ && rgb_decoder_->isOpen();
+    return stereo_decoder_ && stereo_decoder_->isOpen();
 }
 
 
@@ -211,12 +188,12 @@ bool VideoPlayer::isReady() const {
 
 
 bool VideoPlayer::isEOF() const {
-    return rgb_decoder_ && rgb_decoder_->isEOF();
+    return stereo_decoder_ && stereo_decoder_->isEOF();
 }
 
 
-RgbVideoDecoder* VideoPlayer::getRgbDecoder() const {
-    return rgb_decoder_.get();
+StereoVideoDecoder* VideoPlayer::getStereoDecoder() const {
+    return stereo_decoder_.get();
 }
 
 
@@ -225,12 +202,7 @@ ID3D11Device* VideoPlayer::getD3D11Device() const {
         return nullptr;
     }
     
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        return nullptr;
-    }
-    
-    return hw_decoder->getD3D11Device();
+    return stereo_decoder_->getD3D11Device();
 }
 
 
@@ -239,17 +211,20 @@ ID3D11DeviceContext* VideoPlayer::getD3D11DeviceContext() const {
         return nullptr;
     }
     
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
+    // StereoVideoDecoder 不暴露 DeviceContext，通过设备获取
+    ID3D11Device* device = stereo_decoder_->getD3D11Device();
+    if (!device) {
         return nullptr;
     }
     
-    return hw_decoder->getD3D11DeviceContext();
+    ID3D11DeviceContext* context = nullptr;
+    device->GetImmediateContext(&context);
+    return context;
 }
 
 
 bool VideoPlayer::preloadNextFrame() {
-    if (!rgb_decoder_) {
+    if (!stereo_decoder_) {
         return false;
     }
     
@@ -258,8 +233,8 @@ bool VideoPlayer::preloadNextFrame() {
         return true;  // 缓冲区已满，不需要预加载更多帧
     }
     
-    RgbVideoDecoder::DecodedRgbFrame frame;
-    if (!rgb_decoder_->readNextFrame(frame)) {
+    DecodedStereoFrame frame;
+    if (!stereo_decoder_->readNextFrame(frame)) {
         return false;  // 读取失败或到达文件末尾
     }
     
@@ -270,14 +245,7 @@ bool VideoPlayer::preloadNextFrame() {
 }
 
 
-double VideoPlayer::convertPtsToSeconds(AVFrame* frame) const {
-    if (!frame || frame->pts == AV_NOPTS_VALUE) {
-        return 0.0;
-    }
-    
-    // 将 PTS 转换为秒数：pts * time_base.num / time_base.den
-    return (double)frame->pts * stream_info_.video_time_base.num / stream_info_.video_time_base.den;
-}
+// 不再需要此函数，因为 DecodedStereoFrame 已包含 pts_seconds
 
 
 bool VideoPlayer::initializeRenderTarget(ComPtr<ID3D11Texture2D> render_target) {
@@ -291,13 +259,7 @@ bool VideoPlayer::initializeRenderTarget(ComPtr<ID3D11Texture2D> render_target) 
     render_target_texture_ = render_target;
     
     // 获取 D3D11 设备
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        std::cerr << "Failed to get hardware decoder" << std::endl;
-        return false;
-    }
-    
-    ID3D11Device* device = hw_decoder->getD3D11Device();
+    ID3D11Device* device = stereo_decoder_->getD3D11Device();
     if (!device) {
         std::cerr << "Failed to get D3D11 device" << std::endl;
         return false;
@@ -330,13 +292,7 @@ bool VideoPlayer::initializeRenderTarget(ComPtr<IDXGISwapChain> swap_chain) {
     render_target_swapchain_ = swap_chain;
     
     // 获取 D3D11 设备
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        std::cerr << "Failed to get hardware decoder" << std::endl;
-        return false;
-    }
-    
-    ID3D11Device* device = hw_decoder->getD3D11Device();
+    ID3D11Device* device = stereo_decoder_->getD3D11Device();
     if (!device) {
         std::cerr << "Failed to get D3D11 device" << std::endl;
         return false;
@@ -367,20 +323,20 @@ void VideoPlayer::renderFrame(ComPtr<ID3D11Texture2D> source_texture) {
     }
     
     // 获取 D3D11 设备上下文
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
+    ID3D11Device* device = stereo_decoder_->getD3D11Device();
+    if (!device) {
         return;
     }
     
-    ID3D11DeviceContext* context = hw_decoder->getD3D11DeviceContext();
+    ID3D11DeviceContext* context = nullptr;
+    device->GetImmediateContext(&context);
     if (!context) {
         return;
     }
     
     // 确保渲染管线已初始化
     if (!fullscreen_vs_ || !fullscreen_ps_) {
-        ID3D11Device* device = hw_decoder->getD3D11Device();
-        if (!device || !initializeRenderPipeline(device)) {
+        if (!initializeRenderPipeline(device)) {
             std::cerr << "Failed to initialize render pipeline" << std::endl;
             return;
         }
@@ -596,12 +552,7 @@ ComPtr<ID3D11ShaderResourceView> VideoPlayer::createTextureShaderResourceView(Co
     }
     
     // 获取设备
-    HwVideoDecoder* hw_decoder = rgb_decoder_->getHwDecoder();
-    if (!hw_decoder) {
-        return nullptr;
-    }
-    
-    ID3D11Device* device = hw_decoder->getD3D11Device();
+    ID3D11Device* device = stereo_decoder_->getD3D11Device();
     if (!device) {
         return nullptr;
     }
@@ -626,4 +577,20 @@ ComPtr<ID3D11ShaderResourceView> VideoPlayer::createTextureShaderResourceView(Co
     }
     
     return srv;
+}
+
+int VideoPlayer::getWidth() const {
+    if (!isOpen()) {
+        return 0;
+    }
+    
+    return stereo_decoder_->getWidth();
+}
+
+int VideoPlayer::getHeight() const {
+    if (!isOpen()) {
+        return 0;
+    }
+    
+    return stereo_decoder_->getHeight();
 } 

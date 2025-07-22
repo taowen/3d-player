@@ -21,7 +21,7 @@ extern std::vector<uint8_t> readTexturePixels(ID3D11Device* device, ID3D11Device
 extern bool isValidPixelData(const std::vector<uint8_t>& pixels, int width, int height);
 
 
-TEST_CASE("AudioVideoPlayer basic functionality", "[audio_video_player]") {
+TEST_CASE("AudioVideoPlayer basic functionality", "[audio_video_player][test_audio_video_player.cpp]") {
     AudioVideoPlayer player;
     
     SECTION("Open non-existent file should fail") {
@@ -149,7 +149,7 @@ TEST_CASE("AudioVideoPlayer basic functionality", "[audio_video_player]") {
 }
 
 
-TEST_CASE("AudioVideoPlayer with audio functionality", "[audio_video_player]") {
+TEST_CASE("AudioVideoPlayer with audio functionality", "[audio_video_player][test_audio_video_player.cpp]") {
     AudioVideoPlayer player;
     
     SECTION("Open file with audio and test audio initialization") {
@@ -262,7 +262,7 @@ TEST_CASE("AudioVideoPlayer with audio functionality", "[audio_video_player]") {
 }
 
 
-TEST_CASE("AudioVideoPlayer component access", "[audio_video_player]") {
+TEST_CASE("AudioVideoPlayer component access", "[audio_video_player][test_audio_video_player.cpp]") {
     AudioVideoPlayer player;
     
     SECTION("Test component access methods") {

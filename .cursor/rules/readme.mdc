@@ -160,48 +160,26 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 ### 编译构建
 ```bash
-# 构建测试程序（默认）
+# 构建测试程序（默认） `build/Debug/integration-test.exe`
 powershell -ExecutionPolicy Bypass -File build.ps1
 
-# 构建 3D Player 程序
+# 构建 3D Player 程序 `build/Debug/3d_player.exe`
 powershell -ExecutionPolicy Bypass -File build.ps1 3d_player
-
-# 如果遇到 CMake 缓存问题，先清理 build 目录
-rm -rf build && powershell -ExecutionPolicy Bypass -File build.ps1
 ```
-
-**支持的构建目标**：
-- `test` - 构建测试程序（默认）
-- `3d_player` - 构建 3D Player 可执行文件
-
-**编译输出**：
-- 测试程序：`build/Debug/integration-test.exe`
-- 3D播放器：`build/Debug/3d_player.exe`
 
 ### 运行测试
 ```bash
-# 运行所有测试
-build/Debug/integration-test.exe
-
-# 运行所有测试查看摘要
-build/Debug/integration-test.exe -r compact
-
-# 运行特定测试用例查看详细错误  
-build/Debug/integration-test.exe "测试用例名称" -s
-
-# 列出所有可用的测试用例
-build/Debug/integration-test.exe --list-tests
-
-# 运行特定标签的测试
-build/Debug/integration-test.exe -t "[audio_decoder]"
-build/Debug/integration-test.exe -t "[video_player]" 
-build/Debug/integration-test.exe -t "[tensorrt]"
-
-# 运行 TensorRT 测试（需要 CUDA GPU + TensorRT 支持）
-build/Debug/integration-test.exe "TensorRT ONNX inference" -s
-
-# 运行 3D Player（播放视频）
-build/Debug/3d_player.exe test_data/sample_hw.mkv
+# 按文件名运行测试（推荐方式）
+build/Debug/integration-test.exe "[test_mkv_stream_reader.cpp]" -r compact
+build/Debug/integration-test.exe "[test_hw_video_decoder.cpp]" -r compact
+build/Debug/integration-test.exe "[test_audio_decoder.cpp]" -r compact
+build/Debug/integration-test.exe "[test_rgb_video_decoder.cpp]" -r compact
+build/Debug/integration-test.exe "[test_audio_player.cpp]" -r compact
+build/Debug/integration-test.exe "[test_video_player.cpp]" -r compact
+build/Debug/integration-test.exe "[test_audio_video_player.cpp]" -r compact
+build/Debug/integration-test.exe "[test_stereo_video_decoder.cpp]" -r compact
+build/Debug/integration-test.exe "[test_tensorrt.cpp]" -r compact
+build/Debug/integration-test.exe "[test_d3d11_cuda_interop.cpp]" -r compact
 ```
 
 - **测试运行目录**：测试程序在项目根目录 (`3d-player\`) 运行

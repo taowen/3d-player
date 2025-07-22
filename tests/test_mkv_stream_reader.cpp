@@ -6,7 +6,7 @@
 // Test MKV file path - use hardware decoder friendly test file
 const std::string TEST_MKV_FILE = "test_data/sample_hw.mkv";
 
-TEST_CASE("MKVStreamReader can open and read stream info", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader can open and read stream info", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     SECTION("Open non-existent file should fail") {
@@ -71,7 +71,7 @@ TEST_CASE("MKVStreamReader can open and read stream info", "[mkv_stream_reader]"
     }
 }
 
-TEST_CASE("MKVStreamReader packet reading", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader packet reading", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     std::ifstream file(TEST_MKV_FILE);
@@ -114,7 +114,7 @@ TEST_CASE("MKVStreamReader packet reading", "[mkv_stream_reader]") {
     reader.close();
 }
 
-TEST_CASE("MKVStreamReader EOF handling", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader EOF handling", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     std::ifstream file(TEST_MKV_FILE);
@@ -145,7 +145,7 @@ TEST_CASE("MKVStreamReader EOF handling", "[mkv_stream_reader]") {
     reader.close();
 }
 
-TEST_CASE("MKVStreamReader reopen capability", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader reopen capability", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     std::ifstream file(TEST_MKV_FILE);
@@ -167,7 +167,7 @@ TEST_CASE("MKVStreamReader reopen capability", "[mkv_stream_reader]") {
     }
 }
 
-TEST_CASE("MKVStreamReader multiple stream info calls", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader multiple stream info calls", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     std::ifstream file(TEST_MKV_FILE);
@@ -191,7 +191,7 @@ TEST_CASE("MKVStreamReader multiple stream info calls", "[mkv_stream_reader]") {
     reader.close();
 }
 
-TEST_CASE("MKVStreamReader error handling", "[mkv_stream_reader]") {
+TEST_CASE("MKVStreamReader error handling", "[mkv_stream_reader][test_mkv_stream_reader.cpp]") {
     MKVStreamReader reader;
     
     // Operations on unopened file should safely fail

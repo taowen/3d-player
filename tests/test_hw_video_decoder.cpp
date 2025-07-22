@@ -6,7 +6,7 @@ extern "C" {
 #include <libavutil/pixfmt.h>
 }
 
-TEST_CASE("HwVideoDecoder basic functionality", "[hw_video_decoder]") {
+TEST_CASE("HwVideoDecoder basic functionality", "[hw_video_decoder][test_hw_video_decoder.cpp]") {
     HwVideoDecoder decoder;
     
     // Open video file
@@ -67,7 +67,7 @@ TEST_CASE("HwVideoDecoder basic functionality", "[hw_video_decoder]") {
     REQUIRE_FALSE(decoder.isOpen());
 }
 
-TEST_CASE("HwVideoDecoder hardware acceleration verification", "[hw_video_decoder]") {
+TEST_CASE("HwVideoDecoder hardware acceleration verification", "[hw_video_decoder][test_hw_video_decoder.cpp]") {
     HwVideoDecoder decoder;
     
     // Open video file

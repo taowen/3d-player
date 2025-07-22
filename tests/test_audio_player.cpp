@@ -9,7 +9,7 @@
 const std::string AUDIO_TEST_FILE = "test_data/sample_with_audio.mkv";
 
 
-TEST_CASE("AudioPlayer basic functionality", "[audio_player]") {
+TEST_CASE("AudioPlayer basic functionality", "[audio_player][test_audio_player.cpp]") {
     AudioPlayer player;
     
     SECTION("Open non-existent file should fail") {
@@ -83,7 +83,7 @@ TEST_CASE("AudioPlayer basic functionality", "[audio_player]") {
 }
 
 
-TEST_CASE("AudioPlayer lifecycle management", "[audio_player]") {
+TEST_CASE("AudioPlayer lifecycle management", "[audio_player][test_audio_player.cpp]") {
     AudioPlayer player;
     
     SECTION("Open, initialize, and close audio player") {
@@ -134,7 +134,7 @@ TEST_CASE("AudioPlayer lifecycle management", "[audio_player]") {
 }
 
 
-TEST_CASE("AudioPlayer state management", "[audio_player]") {
+TEST_CASE("AudioPlayer state management", "[audio_player][test_audio_player.cpp]") {
     AudioPlayer player;
     
     SECTION("Test state consistency") {

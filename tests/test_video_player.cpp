@@ -77,7 +77,7 @@ bool isValidPixelData(const std::vector<uint8_t>& pixels, int width, int height)
 }
 
 
-TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_player]") {
+TEST_CASE("VideoPlayer basic functionality with render to texture", "[video_player][test_video_player.cpp]") {
     VideoPlayer player;
     
     SECTION("Open non-existent file should fail") {

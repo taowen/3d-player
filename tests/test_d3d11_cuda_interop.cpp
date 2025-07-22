@@ -17,7 +17,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-TEST_CASE("D3D11 CUDA Interop", "[d3d11][cuda][interop]") {
+TEST_CASE("D3D11 CUDA Interop", "[d3d11][cuda][interop][test_d3d11_cuda_interop.cpp]") {
     SECTION("Texture to CUDA memory mapping") {
         
         // 1. 创建 D3D11 设备 - 使用和 CUDA 兼容的适配器

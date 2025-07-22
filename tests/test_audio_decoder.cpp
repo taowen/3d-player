@@ -6,7 +6,7 @@ extern "C" {
 #include <libavutil/samplefmt.h>
 }
 
-TEST_CASE("AudioDecoder with audio stream", "[audio_decoder]") {
+TEST_CASE("AudioDecoder with audio stream", "[audio_decoder][test_audio_decoder.cpp]") {
     AudioDecoder decoder;
     
     // 打开包含音频流的文件
@@ -53,7 +53,7 @@ TEST_CASE("AudioDecoder with audio stream", "[audio_decoder]") {
 }
 
 
-TEST_CASE("AudioDecoder EOF detection", "[audio_decoder]") {
+TEST_CASE("AudioDecoder EOF detection", "[audio_decoder][test_audio_decoder.cpp]") {
     AudioDecoder decoder;
     
     // 打开包含音频流的文件
@@ -85,7 +85,7 @@ TEST_CASE("AudioDecoder EOF detection", "[audio_decoder]") {
 }
 
 
-TEST_CASE("AudioDecoder resource management", "[audio_decoder]") {
+TEST_CASE("AudioDecoder resource management", "[audio_decoder][test_audio_decoder.cpp]") {
     AudioDecoder decoder;
     
     // 测试多次打开和关闭
@@ -121,7 +121,7 @@ TEST_CASE("AudioDecoder resource management", "[audio_decoder]") {
 }
 
 
-TEST_CASE("AudioDecoder error handling", "[audio_decoder]") {
+TEST_CASE("AudioDecoder error handling", "[audio_decoder][test_audio_decoder.cpp]") {
     AudioDecoder decoder;
     
     // 测试打开不存在的文件

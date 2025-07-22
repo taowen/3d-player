@@ -211,7 +211,7 @@ bool comparePixels(const std::vector<uint8_t>& pixels1, const std::vector<uint8_
     return avg_diff <= tolerance;
 }
 
-TEST_CASE("RgbVideoDecoder basic functionality", "[rgb_video_decoder]") {
+TEST_CASE("RgbVideoDecoder basic functionality", "[rgb_video_decoder][test_rgb_video_decoder.cpp]") {
     RgbVideoDecoder decoder;
 
     SECTION("Open non-existent file should fail") {
@@ -304,7 +304,7 @@ TEST_CASE("RgbVideoDecoder basic functionality", "[rgb_video_decoder]") {
     }
 }
 
-TEST_CASE("RgbVideoDecoder hardware decoder access", "[rgb_video_decoder]") {
+TEST_CASE("RgbVideoDecoder hardware decoder access", "[rgb_video_decoder][test_rgb_video_decoder.cpp]") {
     RgbVideoDecoder decoder;
     HwVideoDecoder* hw_decoder = decoder.getHwDecoder();
     REQUIRE(hw_decoder != nullptr);
@@ -319,7 +319,7 @@ TEST_CASE("RgbVideoDecoder hardware decoder access", "[rgb_video_decoder]") {
     decoder.close();
 }
 
-TEST_CASE("RgbVideoDecoder error handling", "[rgb_video_decoder]") {
+TEST_CASE("RgbVideoDecoder error handling", "[rgb_video_decoder][test_rgb_video_decoder.cpp]") {
     RgbVideoDecoder decoder;
     RgbVideoDecoder::DecodedRgbFrame frame;
     REQUIRE_FALSE(decoder.readNextFrame(frame));

@@ -25,7 +25,7 @@ public:
     }
 };
 
-TEST_CASE("TensorRT ONNX inference", "[tensorrt][stereo_depth]") {
+TEST_CASE("TensorRT ONNX inference", "[tensorrt][stereo_depth][test_tensorrt.cpp]") {
     SECTION("GPU inference with stereo depth ONNX model") {
         try {
             // 初始化 TensorRT Logger

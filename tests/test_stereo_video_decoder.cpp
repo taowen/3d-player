@@ -5,7 +5,7 @@
 #include <iostream>
 #include <chrono>
 
-TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames]") {
+TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][test_stereo_video_decoder.cpp]") {
     SECTION("Read frames from valid video") {
         StereoVideoDecoder decoder;
         

@@ -9,6 +9,7 @@
 
 extern "C" {
 #include <libavutil/rational.h>
+#include <libavutil/frame.h>
 }
 
 
@@ -34,7 +35,7 @@ bool VideoPlayer::open(const std::string& filepath) {
     }
     
     // StereoVideoDecoder 不暴露内部实现细节，无需获取底层组件
-    // 时间戳信息将通过 DecodedStereoFrame 的 pts_seconds 字段获取
+    // 时间戳信息从 DecodedStereoFrame 的 AVFrame 中计算获取
     
     return true;
 }
@@ -106,7 +107,12 @@ void VideoPlayer::onTimer(double current_time) {
     
     while (!frame_buffer_.empty()) {
         auto& front_frame = frame_buffer_.front();
-        double frame_time = front_frame.pts_seconds;
+        // 从AVFrame和时间基计算PTS时间戳
+        double frame_time = 0.0;
+        if (front_frame.frame && front_frame.frame->pts != AV_NOPTS_VALUE) {
+            AVRational time_base = stereo_decoder_->getVideoTimeBase();
+            frame_time = front_frame.frame->pts * av_q2d(time_base);
+        }
         
         if (frame_time <= current_time) {
             // 时间已到，切换到这一帧
@@ -119,7 +125,10 @@ void VideoPlayer::onTimer(double current_time) {
             current_frame_texture_ = front_frame.stereo_texture;
             current_frame_time_ = frame_time;
             
-            // StereoVideoDecoder 自动管理内存，无需手动释放
+            // 释放AVFrame内存
+            if (front_frame.frame) {
+                av_frame_free(&front_frame.frame);
+            }
             frame_buffer_.pop();
             
             need_render = true;
@@ -150,6 +159,10 @@ void VideoPlayer::close() {
     
     // 清空帧缓冲
     while (!frame_buffer_.empty()) {
+        DecodedStereoFrame& frame = frame_buffer_.front();
+        if (frame.frame) {
+            av_frame_free(&frame.frame);
+        }
         frame_buffer_.pop();
     }
     
@@ -245,7 +258,7 @@ bool VideoPlayer::preloadNextFrame() {
 }
 
 
-// 不再需要此函数，因为 DecodedStereoFrame 已包含 pts_seconds
+// convertPtsToSeconds 函数已移除，直接从 AVFrame 计算时间戳
 
 
 bool VideoPlayer::initializeRenderTarget(ComPtr<ID3D11Texture2D> render_target) {

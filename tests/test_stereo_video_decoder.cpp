@@ -6,6 +6,11 @@
 #include <chrono>
 #include <algorithm>
 
+extern "C" {
+#include <libavutil/frame.h>
+#include <libavutil/rational.h>
+}
+
 TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][test_stereo_video_decoder.cpp]") {
     SECTION("Read frames from valid video") {
         StereoVideoDecoder decoder;
@@ -45,7 +50,14 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             
             REQUIRE(frame.is_valid);
             REQUIRE(frame.stereo_texture != nullptr);
-            REQUIRE(frame.pts_seconds >= 0.0);
+            
+            // 计算PTS时间戳
+            double pts_seconds = 0.0;
+            if (frame.frame && frame.frame->pts != AV_NOPTS_VALUE) {
+                AVRational time_base = decoder.getVideoTimeBase();
+                pts_seconds = frame.frame->pts * av_q2d(time_base);
+            }
+            REQUIRE(pts_seconds >= 0.0);
             
             D3D11_TEXTURE2D_DESC texture_desc;
             frame.stereo_texture->GetDesc(&texture_desc);
@@ -120,9 +132,14 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             
             std::cout << "Frame " << frame_count 
                       << ": " << texture_desc.Width << "x" << texture_desc.Height
-                      << ", PTS: " << frame.pts_seconds << "s"
+                      << ", PTS: " << pts_seconds << "s"
                       << ", Processing time: " << duration.count() << "ms"
                       << ", Pixel validation: PASSED" << std::endl;
+            
+            // 释放AVFrame内存
+            if (frame.frame) {
+                av_frame_free(&frame.frame);
+            }
             
             frame_count++;
         }

@@ -5,6 +5,11 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
+extern "C" {
+#include <libavutil/frame.h>
+#include <libavutil/rational.h>
+}
+
 class FloatRgbVideoDecoder;
 
 // TensorRT 前向声明 - 使用结构体包装参数
@@ -15,7 +20,7 @@ struct TensorDims {
 
 struct DecodedStereoFrame {
     Microsoft::WRL::ComPtr<ID3D11Texture2D> stereo_texture;
-    double pts_seconds = 0.0;
+    AVFrame* frame = nullptr;  // 暴露完整frame，包含pts等所有信息
     bool is_valid = false;
 };
 
@@ -34,6 +39,7 @@ public:
     int getWidth() const;
     int getHeight() const;
     ID3D11Device* getD3D11Device() const;
+    AVRational getVideoTimeBase() const;
     
 private:
     std::unique_ptr<FloatRgbVideoDecoder> float_rgb_decoder_;

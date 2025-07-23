@@ -171,7 +171,7 @@ private:
     bool preloadNextFrame();
     
     
-    // convertPtsToSeconds 函数已移除，因为 DecodedStereoFrame 包含 pts_seconds
+    // convertPtsToSeconds 函数已移除，直接从 AVFrame 和时间基计算时间戳
     
     
     /**

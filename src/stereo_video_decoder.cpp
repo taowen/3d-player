@@ -107,7 +107,7 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
     }
     
     frame.stereo_texture = stereo_texture_;
-    frame.pts_seconds = float_rgb_frame.rgb_frame.hw_frame.frame->pts * av_q2d(float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getStreamReader()->getStreamInfo().video_time_base);
+    frame.frame = float_rgb_frame.rgb_frame.hw_frame.frame;
     frame.is_valid = true;
     
     return true;
@@ -123,6 +123,13 @@ int StereoVideoDecoder::getHeight() const {
 
 ID3D11Device* StereoVideoDecoder::getD3D11Device() const {
     return float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getD3D11Device();
+}
+
+AVRational StereoVideoDecoder::getVideoTimeBase() const {
+    if (!float_rgb_decoder_) {
+        return {0, 1};
+    }
+    return float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getStreamReader()->getStreamInfo().video_time_base;
 }
 
 bool StereoVideoDecoder::initializeTensorRT() {

@@ -101,7 +101,7 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
         return false;
     }
     
-    if (!convertToStereo(float_rgb_frame.float_texture.Get(), stereo_texture_.Get())) {
+    if (!convertToStereo(float_rgb_frame.cuda_buffer, stereo_texture_.Get())) {
         std::cerr << "Failed to convert frame to stereo" << std::endl;
         return false;
     }
@@ -174,26 +174,27 @@ bool StereoVideoDecoder::initializeTensorRT() {
     return true;
 }
 
-bool StereoVideoDecoder::convertToStereo(ID3D11Texture2D* input_rgb, ID3D11Texture2D* output_stereo) {
-    if (!tensorrt_initialized_) {
+bool StereoVideoDecoder::convertToStereo(void* input_cuda_ptr, ID3D11Texture2D* output_stereo) {
+    if (!tensorrt_initialized_ || !input_cuda_ptr) {
         return false;
     }
     
-    D3D11_TEXTURE2D_DESC input_desc;
-    input_rgb->GetDesc(&input_desc);
+    // 获取视频尺寸用于TensorRT维度设置
+    int width = float_rgb_decoder_->getWidth();
+    int height = float_rgb_decoder_->getHeight();
     
     TensorDims runtime_dims;
     runtime_dims.nbDims = 4;
     runtime_dims.d[0] = 1;
     runtime_dims.d[1] = 4;
-    runtime_dims.d[2] = (int)input_desc.Height;
-    runtime_dims.d[3] = (int)input_desc.Width;
+    runtime_dims.d[2] = height;
+    runtime_dims.d[3] = width;
     
-    if (!registerCudaResources(input_rgb, output_stereo)) {
+    if (!registerCudaResources(nullptr, output_stereo)) {
         return false;
     }
     
-    if (!prepareInferenceInput(input_rgb, runtime_dims)) {
+    if (!prepareInferenceInput(input_cuda_ptr, runtime_dims)) {
         return false;
     }
     
@@ -201,7 +202,9 @@ bool StereoVideoDecoder::convertToStereo(ID3D11Texture2D* input_rgb, ID3D11Textu
         return false;
     }
     
-    if (!copyInferenceOutput(output_stereo, input_desc)) {
+    D3D11_TEXTURE2D_DESC output_desc;
+    output_stereo->GetDesc(&output_desc);
+    if (!copyInferenceOutput(output_stereo, output_desc)) {
         return false;
     }
     
@@ -210,24 +213,7 @@ bool StereoVideoDecoder::convertToStereo(ID3D11Texture2D* input_rgb, ID3D11Textu
 
 
 bool StereoVideoDecoder::registerCudaResources(ID3D11Texture2D* input_rgb, ID3D11Texture2D* output_stereo) {
-    cudaError_t cuda_err;
-    
-    // 检查输入纹理是否需要重新注册
-    if (input_resource_ == nullptr || registered_input_texture_ != input_rgb) {
-        if (input_resource_ != nullptr) {
-            cudaGraphicsUnregisterResource(static_cast<cudaGraphicsResource*>(input_resource_));
-            input_resource_ = nullptr;
-            registered_input_texture_ = nullptr;
-        }
-        
-        cuda_err = cudaGraphicsD3D11RegisterResource(
-            reinterpret_cast<cudaGraphicsResource**>(&input_resource_), input_rgb, cudaGraphicsRegisterFlagsNone);
-        if (cuda_err != cudaSuccess) {
-            std::cerr << "Failed to register input texture: " << cudaGetErrorString(cuda_err) << std::endl;
-            return false;
-        }
-        registered_input_texture_ = input_rgb;
-    }
+    // 输入已经是CUDA指针，不需要注册输入纹理
     
     // 检查输出纹理是否需要重新注册
     if (output_resource_ == nullptr || registered_output_texture_ != output_stereo) {
@@ -237,16 +223,10 @@ bool StereoVideoDecoder::registerCudaResources(ID3D11Texture2D* input_rgb, ID3D1
             registered_output_texture_ = nullptr;
         }
         
-        cuda_err = cudaGraphicsD3D11RegisterResource(
+        cudaError_t cuda_err = cudaGraphicsD3D11RegisterResource(
             reinterpret_cast<cudaGraphicsResource**>(&output_resource_), output_stereo, cudaGraphicsRegisterFlagsNone);
         if (cuda_err != cudaSuccess) {
             std::cerr << "Failed to register output texture: " << cudaGetErrorString(cuda_err) << std::endl;
-            // 清理输入资源防止不一致状态
-            if (input_resource_ != nullptr) {
-                cudaGraphicsUnregisterResource(static_cast<cudaGraphicsResource*>(input_resource_));
-                input_resource_ = nullptr;
-                registered_input_texture_ = nullptr;
-            }
             return false;
         }
         registered_output_texture_ = output_stereo;
@@ -255,7 +235,7 @@ bool StereoVideoDecoder::registerCudaResources(ID3D11Texture2D* input_rgb, ID3D1
     return true;
 }
 
-bool StereoVideoDecoder::prepareInferenceInput(ID3D11Texture2D* input_rgb, const TensorDims& runtime_dims) {
+bool StereoVideoDecoder::prepareInferenceInput(void* input_cuda_ptr, const TensorDims& runtime_dims) {
     const char* input_tensor_name = static_cast<nvinfer1::ICudaEngine*>(tensorrt_engine_)->getIOTensorName(0);
     
     // 转换为 TensorRT Dims
@@ -270,43 +250,10 @@ bool StereoVideoDecoder::prepareInferenceInput(ID3D11Texture2D* input_rgb, const
         return false;
     }
     
-    D3D11_TEXTURE2D_DESC input_desc;
-    input_rgb->GetDesc(&input_desc);
-    
-    size_t bytes_per_pixel = RGBA_FLOAT_BYTES;
-    
-    cudaGraphicsResource* resources[] = {static_cast<cudaGraphicsResource*>(input_resource_), static_cast<cudaGraphicsResource*>(output_resource_)};
-    cudaError_t cuda_err = cudaGraphicsMapResources(2, resources, 0);
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to map graphics resources: " << cudaGetErrorString(cuda_err) << std::endl;
-        return false;
-    }
-    
-    cudaArray_t input_array;
-    cuda_err = cudaGraphicsSubResourceGetMappedArray(&input_array, static_cast<cudaGraphicsResource*>(input_resource_), 0, 0);
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to get mapped array from input resource: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(2, resources, 0);
-        return false;
-    }
-    
-    size_t input_size = input_desc.Width * input_desc.Height * RGBA_FLOAT_BYTES;
-    size_t output_size = input_desc.Width * input_desc.Height * RGBA_FLOAT_BYTES;
-    
-    // 检查输入内存是否需要重新分配
-    if (device_input_ == nullptr || device_input_size_ != input_size) {
-        if (device_input_ != nullptr) {
-            cudaFree(device_input_);
-            device_input_ = nullptr;
-        }
-        cuda_err = cudaMalloc(&device_input_, input_size);
-        if (cuda_err != cudaSuccess) {
-            std::cerr << "Failed to allocate input CUDA memory: " << cudaGetErrorString(cuda_err) << std::endl;
-            cudaGraphicsUnmapResources(2, resources, 0);
-            return false;
-        }
-        device_input_size_ = input_size;
-    }
+    // 计算输出缓冲区大小
+    int width = float_rgb_decoder_->getWidth();
+    int height = float_rgb_decoder_->getHeight();
+    size_t output_size = width * height * RGBA_FLOAT_BYTES;
     
     // 检查输出内存是否需要重新分配
     if (device_output_ == nullptr || device_output_size_ != output_size) {
@@ -314,30 +261,16 @@ bool StereoVideoDecoder::prepareInferenceInput(ID3D11Texture2D* input_rgb, const
             cudaFree(device_output_);
             device_output_ = nullptr;
         }
-        cuda_err = cudaMalloc(&device_output_, output_size);
+        cudaError_t cuda_err = cudaMalloc(&device_output_, output_size);
         if (cuda_err != cudaSuccess) {
             std::cerr << "Failed to allocate output CUDA memory: " << cudaGetErrorString(cuda_err) << std::endl;
-            cudaGraphicsUnmapResources(2, resources, 0);
             return false;
         }
         device_output_size_ = output_size;
     }
     
-    size_t input_pitch = input_desc.Width * bytes_per_pixel;
-    cuda_err = cudaMemcpy2DFromArray(
-        device_input_, 
-        input_pitch,
-        input_array, 0, 0,
-        input_pitch,
-        input_desc.Height,
-        cudaMemcpyDeviceToDevice
-    );
-    
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to copy from input array: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(2, resources, 0);
-        return false;
-    }
+    // 直接使用 FloatRgbVideoDecoder 提供的 CUDA 指针作为输入
+    device_input_ = input_cuda_ptr;
     
     return true;
 }
@@ -354,34 +287,41 @@ bool StereoVideoDecoder::executeInference() {
     return true;
 }
 
-bool StereoVideoDecoder::copyInferenceOutput(ID3D11Texture2D* output_stereo, const D3D11_TEXTURE2D_DESC& input_desc) {
-    cudaGraphicsResource* resources[] = {static_cast<cudaGraphicsResource*>(input_resource_), static_cast<cudaGraphicsResource*>(output_resource_)};
+bool StereoVideoDecoder::copyInferenceOutput(ID3D11Texture2D* output_stereo, const D3D11_TEXTURE2D_DESC& output_desc) {
+    cudaGraphicsResource* output_resource = static_cast<cudaGraphicsResource*>(output_resource_);
     
-    cudaArray_t output_array;
-    cudaError_t cuda_err = cudaGraphicsSubResourceGetMappedArray(&output_array, static_cast<cudaGraphicsResource*>(output_resource_), 0, 0);
+    // 映射输出纹理资源
+    cudaError_t cuda_err = cudaGraphicsMapResources(1, &output_resource, 0);
     if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to get mapped array from output resource: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(2, resources, 0);
+        std::cerr << "Failed to map output graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
         return false;
     }
     
-    size_t output_pitch = input_desc.Width * RGBA_FLOAT_BYTES;
+    cudaArray_t output_array;
+    cuda_err = cudaGraphicsSubResourceGetMappedArray(&output_array, output_resource, 0, 0);
+    if (cuda_err != cudaSuccess) {
+        std::cerr << "Failed to get mapped array from output resource: " << cudaGetErrorString(cuda_err) << std::endl;
+        cudaGraphicsUnmapResources(1, &output_resource, 0);
+        return false;
+    }
+    
+    size_t output_pitch = output_desc.Width * RGBA_FLOAT_BYTES;
     cuda_err = cudaMemcpy2DToArray(
         output_array, 0, 0,
         device_output_,
         output_pitch,
         output_pitch,
-        input_desc.Height,
+        output_desc.Height,
         cudaMemcpyDeviceToDevice
     );
     
     if (cuda_err != cudaSuccess) {
         std::cerr << "Failed to copy to output array: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(2, resources, 0);
+        cudaGraphicsUnmapResources(1, &output_resource, 0);
         return false;
     }
     
-    cuda_err = cudaGraphicsUnmapResources(2, resources, 0);
+    cuda_err = cudaGraphicsUnmapResources(1, &output_resource, 0);
     if (cuda_err != cudaSuccess) {
         std::cerr << "Failed to unmap graphics resources: " << cudaGetErrorString(cuda_err) << std::endl;
         return false;
@@ -392,11 +332,10 @@ bool StereoVideoDecoder::copyInferenceOutput(ID3D11Texture2D* output_stereo, con
 
 void StereoVideoDecoder::cleanupTensorRT() {
     // 清理 CUDA 内存
-    if (device_input_) {
-        cudaFree(device_input_);
-        device_input_ = nullptr;
-        device_input_size_ = 0;
-    }
+    // device_input_ 现在指向 FloatRgbVideoDecoder 的内存，不需要我们释放
+    device_input_ = nullptr;
+    device_input_size_ = 0;
+    
     if (device_output_) {
         cudaFree(device_output_);
         device_output_ = nullptr;
@@ -404,11 +343,10 @@ void StereoVideoDecoder::cleanupTensorRT() {
     }
     
     // 清理 Graphics 资源
-    if (input_resource_) {
-        cudaGraphicsUnregisterResource(static_cast<cudaGraphicsResource*>(input_resource_));
-        input_resource_ = nullptr;
-        registered_input_texture_ = nullptr;
-    }
+    // input_resource_ 不再使用，因为输入已经是CUDA指针
+    input_resource_ = nullptr;
+    registered_input_texture_ = nullptr;
+    
     if (output_resource_) {
         cudaGraphicsUnregisterResource(static_cast<cudaGraphicsResource*>(output_resource_));
         output_resource_ = nullptr;

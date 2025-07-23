@@ -11,19 +11,20 @@ using Microsoft::WRL::ComPtr;
 
 /**
  * @class FloatRgbVideoDecoder
- * @brief 浮点RGB视频解码器，基于 RgbVideoDecoder 并提供浮点格式转换功能
+ * @brief 浮点RGB视频解码器，基于 RgbVideoDecoder 并提供CUDA兼容的浮点格式输出
  * 
  * 特性：
  * - 内部使用 RgbVideoDecoder 进行 RGB 解码
- * - 将 DXGI_FORMAT_B8G8R8A8_UNORM 转换为 DXGI_FORMAT_R32G32B32A32_FLOAT
- * - 提供浮点精度的 D3D11 RGB 纹理输出
- * - 自动管理 D3D11 资源
+ * - 将 DXGI_FORMAT_B8G8R8A8_UNORM 转换为浮点RGBA格式(BCHW布局)
+ * - 输出CUDA兼容的线性缓冲区，可直接用于TensorRT推理
+ * - 自动管理 D3D11 和 CUDA 互操作资源
  */
 class FloatRgbVideoDecoder {
 public:
     struct DecodedFloatRgbFrame {
         RgbVideoDecoder::DecodedRgbFrame rgb_frame;    // 原始RGB解码帧
-        ComPtr<ID3D11Texture2D> float_texture;         // 浮点RGB D3D11纹理
+        void* cuda_buffer;                             // CUDA设备指针，BCHW float32 RGBA格式
+        size_t buffer_size;                            // 缓冲区大小(字节)
         bool is_valid;
     };
     
@@ -38,8 +39,8 @@ public:
     bool open(const std::string& filepath);
     
     /**
-     * @brief 读取下一个解码帧并转换为浮点RGB
-     * @param frame 用于存储解码帧的结构体
+     * @brief 读取下一个解码帧并转换为CUDA兼容的浮点RGBA缓冲区
+     * @param frame 用于存储解码帧的结构体，包含CUDA设备指针
      * @return true 成功读取帧，false 读取失败或到达文件末尾
      * @note 调用者负责在使用完毕后调用 av_frame_free(&frame.rgb_frame.hw_frame.frame) 释放内存
      */
@@ -80,6 +81,18 @@ public:
      */
     int getHeight() const;
     
+    /**
+     * @brief 获取当前帧的CUDA设备指针
+     * @return void* CUDA设备指针，格式为BCHW float32 RGBA
+     */
+    void* getCudaBuffer() const;
+    
+    /**
+     * @brief 获取CUDA缓冲区大小
+     * @return size_t 缓冲区大小(字节)
+     */
+    size_t getBufferSize() const;
+    
 private:
     std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
     
@@ -90,14 +103,18 @@ private:
     ComPtr<ID3D11UnorderedAccessView> output_uav_;
     ComPtr<ID3D11ComputeShader> conversion_shader_;
     
-    // 浮点纹理相关
-    ComPtr<ID3D11Texture2D> float_texture_;
+    // CUDA互操作相关
+    ComPtr<ID3D11Buffer> cuda_buffer_;         // D3D11 buffer，用作CUDA互操作
+    ComPtr<ID3D11Buffer> constant_buffer_;     // 常量缓冲区，用于传递width/height
+    void* cuda_graphics_resource_;             // CUDA图形资源句柄
+    void* cuda_device_ptr_;                    // 映射的CUDA设备指针
+    size_t buffer_size_;                       // 缓冲区大小
     
     // 视频尺寸
     int video_width_;
     int video_height_;
     
     bool initializeConversionResources();
-    bool convertToFloat(ComPtr<ID3D11Texture2D> rgb_texture, ComPtr<ID3D11Texture2D>& float_texture);
+    bool convertToCudaBuffer(ComPtr<ID3D11Texture2D> rgb_texture, void*& cuda_ptr);
     void cleanup();
 };

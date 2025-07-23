@@ -1,6 +1,5 @@
-param(
-    [string]$Target = "integration-test"
-)
+# Target 写死为 3d_player
+$Target = "3d_player"
 
 # 设置错误处理
 $ErrorActionPreference = "Stop"

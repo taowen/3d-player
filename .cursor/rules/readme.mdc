@@ -160,26 +160,16 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 ### 编译构建
 ```bash
-# 构建测试程序（默认） `build/Debug/integration-test.exe`
-powershell -ExecutionPolicy Bypass -File build.ps1
-
 # 构建 3D Player 程序 `build/Debug/3d_player.exe`
-powershell -ExecutionPolicy Bypass -File build.ps1 3d_player
-```
+powershell -ExecutionPolicy Bypass -File build-3d-player.ps1
 
-### 运行测试
-```bash
-# 按文件名运行测试（推荐方式）
-build/Debug/integration-test.exe "[test_mkv_stream_reader.cpp]" -r compact
-build/Debug/integration-test.exe "[test_hw_video_decoder.cpp]" -r compact
-build/Debug/integration-test.exe "[test_audio_decoder.cpp]" -r compact
-build/Debug/integration-test.exe "[test_rgb_video_decoder.cpp]" -r compact
-build/Debug/integration-test.exe "[test_audio_player.cpp]" -r compact
-build/Debug/integration-test.exe "[test_video_player.cpp]" -r compact
-build/Debug/integration-test.exe "[test_audio_video_player.cpp]" -r compact
-build/Debug/integration-test.exe "[test_stereo_video_decoder.cpp]" -r compact
-build/Debug/integration-test.exe "[test_tensorrt.cpp]" -r compact
-build/Debug/integration-test.exe "[test_d3d11_cuda_interop.cpp]" -r compact
+# 构建并运行单个测试 `build/Debug/integration-test.exe`
+powershell -ExecutionPolicy Bypass -File test.ps1 "[测试文件名.cpp]"
+# 例如 test_mkv_stream_reader.cpp 修改了，要跑这个测试
+powershell -ExecutionPolicy Bypass -File test.ps1 "[test_mkv_stream_reader.cpp]"
+
+# 构建并运行所有测试 `build/Debug/integration-test.exe`
+powershell -ExecutionPolicy Bypass -File test-all.ps1
 ```
 
 - **测试运行目录**：测试程序在项目根目录 (`3d-player\`) 运行

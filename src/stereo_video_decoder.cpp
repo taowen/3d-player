@@ -15,6 +15,10 @@ extern "C" {
 #include <libavutil/rational.h>
 }
 
+namespace {
+    static constexpr size_t RGBA_FLOAT_BYTES = 16; // R32G32B32A32_FLOAT
+}
+
 
 StereoVideoDecoder::StereoVideoDecoder() 
     : float_rgb_decoder_(std::make_unique<FloatRgbVideoDecoder>())
@@ -197,18 +201,6 @@ bool StereoVideoDecoder::convertToStereo(ID3D11Texture2D* input_rgb, ID3D11Textu
     return true;
 }
 
-size_t StereoVideoDecoder::getBytesPerPixel(DXGI_FORMAT format) const {
-    switch(format) {
-        case DXGI_FORMAT_B8G8R8A8_UNORM:
-        case DXGI_FORMAT_R8G8B8A8_UNORM:
-            return 4; // 4个uint8_t
-        case DXGI_FORMAT_R32G32B32A32_FLOAT:
-            return 16; // 4个float
-        default:
-            std::cerr << "Unsupported input texture format: " << format << std::endl;
-            return 0;
-    }
-}
 
 bool StereoVideoDecoder::registerCudaResources(ID3D11Texture2D* input_rgb, ID3D11Texture2D* output_stereo) {
     cudaError_t cuda_err;
@@ -274,10 +266,7 @@ bool StereoVideoDecoder::prepareInferenceInput(ID3D11Texture2D* input_rgb, const
     D3D11_TEXTURE2D_DESC input_desc;
     input_rgb->GetDesc(&input_desc);
     
-    size_t bytes_per_pixel = getBytesPerPixel(input_desc.Format);
-    if (bytes_per_pixel == 0) {
-        return false;
-    }
+    size_t bytes_per_pixel = RGBA_FLOAT_BYTES;
     
     cudaGraphicsResource* resources[] = {static_cast<cudaGraphicsResource*>(input_resource_), static_cast<cudaGraphicsResource*>(output_resource_)};
     cudaError_t cuda_err = cudaGraphicsMapResources(2, resources, 0);
@@ -294,8 +283,8 @@ bool StereoVideoDecoder::prepareInferenceInput(ID3D11Texture2D* input_rgb, const
         return false;
     }
     
-    size_t input_size = input_desc.Width * input_desc.Height * bytes_per_pixel;
-    size_t output_size = input_desc.Width * input_desc.Height * 4 * sizeof(float);
+    size_t input_size = input_desc.Width * input_desc.Height * RGBA_FLOAT_BYTES;
+    size_t output_size = input_desc.Width * input_desc.Height * RGBA_FLOAT_BYTES;
     
     // 检查输入内存是否需要重新分配
     if (device_input_ == nullptr || device_input_size_ != input_size) {
@@ -369,7 +358,7 @@ bool StereoVideoDecoder::copyInferenceOutput(ID3D11Texture2D* output_stereo, con
         return false;
     }
     
-    size_t output_pitch = input_desc.Width * 4 * sizeof(float);
+    size_t output_pitch = input_desc.Width * RGBA_FLOAT_BYTES;
     cuda_err = cudaMemcpy2DToArray(
         output_array, 0, 0,
         device_output_,

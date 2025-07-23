@@ -63,7 +63,6 @@ private:
     void cleanupTensorRT();
     
     // 拆分后的辅助函数
-    size_t getBytesPerPixel(DXGI_FORMAT format) const;
     bool prepareInferenceInput(ID3D11Texture2D* input_rgb, const TensorDims& runtime_dims);
     bool executeInference();
     bool copyInferenceOutput(ID3D11Texture2D* output_stereo, const D3D11_TEXTURE2D_DESC& input_desc);

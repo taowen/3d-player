@@ -166,6 +166,8 @@ powershell -ExecutionPolicy Bypass -File build-3d-player.ps1
 # 构建并运行单个测试 `build/Debug/integration-test.exe`
 powershell -ExecutionPolicy Bypass -File test.ps1 "[测试文件名.cpp]"
 # 例如 test_mkv_stream_reader.cpp 修改了，要跑这个测试
+# [test_mkv_stream_reader.cpp] 是写在了 test_mkv_stream_reader.cpp 文件中的 catch2 测试tag
+# 每个新建的测试文件也需要遵循这个惯例，把自己的文件名做为 catch2 测试的 tag
 powershell -ExecutionPolicy Bypass -File test.ps1 "[test_mkv_stream_reader.cpp]"
 
 # 构建并运行所有测试 `build/Debug/integration-test.exe`

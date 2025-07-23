@@ -33,6 +33,7 @@ add_executable(integration-test
     src/hw_video_decoder.cpp
     src/audio_decoder.cpp
     src/rgb_video_decoder.cpp
+    src/float_rgb_video_decoder.cpp
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp
@@ -48,6 +49,7 @@ add_executable(integration-test
     tests/test_tensorrt.cpp
     tests/test_d3d11_cuda_interop.cpp
     tests/test_stereo_video_decoder.cpp
+    tests/test_float_rgb_video_decoder.cpp
 )
 
 # Link Catch2 to the executable
@@ -98,6 +100,7 @@ add_executable(3d_player
     src/hw_video_decoder.cpp
     src/audio_decoder.cpp
     src/rgb_video_decoder.cpp
+    src/float_rgb_video_decoder.cpp
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp

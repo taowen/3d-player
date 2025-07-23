@@ -1,5 +1,5 @@
 #include "stereo_video_decoder.h"
-#include "rgb_video_decoder.h"
+#include "float_rgb_video_decoder.h"
 #include "tensorrt_utils.h"
 #include <iostream>
 #include <fstream>
@@ -17,7 +17,7 @@ extern "C" {
 
 
 StereoVideoDecoder::StereoVideoDecoder() 
-    : rgb_decoder_(std::make_unique<RgbVideoDecoder>())
+    : float_rgb_decoder_(std::make_unique<FloatRgbVideoDecoder>())
     , is_open_(false)
     , device_input_size_(0)
     , device_output_size_(0)
@@ -33,21 +33,21 @@ StereoVideoDecoder::~StereoVideoDecoder() {
 bool StereoVideoDecoder::open(const std::string& filepath) {
     close();
     
-    if (!rgb_decoder_->open(filepath)) {
+    if (!float_rgb_decoder_->open(filepath)) {
         std::cerr << "Failed to open video file: " << filepath << std::endl;
         return false;
     }
     
     if (!initializeTensorRT()) {
         std::cerr << "Failed to initialize TensorRT processor" << std::endl;
-        rgb_decoder_->close();
+        float_rgb_decoder_->close();
         return false;
     }
     
-    ID3D11Device* device = rgb_decoder_->getHwDecoder()->getD3D11Device();
+    ID3D11Device* device = float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getD3D11Device();
     D3D11_TEXTURE2D_DESC stereo_desc = {};
-    stereo_desc.Width = rgb_decoder_->getWidth();
-    stereo_desc.Height = rgb_decoder_->getHeight();
+    stereo_desc.Width = float_rgb_decoder_->getWidth();
+    stereo_desc.Height = float_rgb_decoder_->getHeight();
     stereo_desc.MipLevels = 1;
     stereo_desc.ArraySize = 1;
     stereo_desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -61,7 +61,7 @@ bool StereoVideoDecoder::open(const std::string& filepath) {
     if (FAILED(hr)) {
         std::cerr << "Failed to create stereo texture" << std::endl;
         cleanupTensorRT();
-        rgb_decoder_->close();
+        float_rgb_decoder_->close();
         return false;
     }
     
@@ -74,17 +74,17 @@ void StereoVideoDecoder::close() {
     if (is_open_) {
         stereo_texture_.Reset();
         cleanupTensorRT();
-        rgb_decoder_->close();
+        float_rgb_decoder_->close();
         is_open_ = false;
     }
 }
 
 bool StereoVideoDecoder::isOpen() const {
-    return is_open_ && rgb_decoder_->isOpen();
+    return is_open_ && float_rgb_decoder_->isOpen();
 }
 
 bool StereoVideoDecoder::isEOF() const {
-    return rgb_decoder_->isEOF();
+    return float_rgb_decoder_->isEOF();
 }
 
 bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
@@ -92,33 +92,33 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
         return false;
     }
     
-    RgbVideoDecoder::DecodedRgbFrame rgb_frame;
-    if (!rgb_decoder_->readNextFrame(rgb_frame)) {
+    FloatRgbVideoDecoder::DecodedFloatRgbFrame float_rgb_frame;
+    if (!float_rgb_decoder_->readNextFrame(float_rgb_frame)) {
         return false;
     }
     
-    if (!convertToStereo(rgb_frame.rgb_texture.Get(), stereo_texture_.Get())) {
+    if (!convertToStereo(float_rgb_frame.float_texture.Get(), stereo_texture_.Get())) {
         std::cerr << "Failed to convert frame to stereo" << std::endl;
         return false;
     }
     
     frame.stereo_texture = stereo_texture_;
-    frame.pts_seconds = rgb_frame.hw_frame.frame->pts * av_q2d(rgb_decoder_->getHwDecoder()->getStreamReader()->getStreamInfo().video_time_base);
+    frame.pts_seconds = float_rgb_frame.rgb_frame.hw_frame.frame->pts * av_q2d(float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getStreamReader()->getStreamInfo().video_time_base);
     frame.is_valid = true;
     
     return true;
 }
 
 int StereoVideoDecoder::getWidth() const {
-    return rgb_decoder_->getWidth();
+    return float_rgb_decoder_->getWidth();
 }
 
 int StereoVideoDecoder::getHeight() const {
-    return rgb_decoder_->getHeight();
+    return float_rgb_decoder_->getHeight();
 }
 
 ID3D11Device* StereoVideoDecoder::getD3D11Device() const {
-    return rgb_decoder_->getHwDecoder()->getD3D11Device();
+    return float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getD3D11Device();
 }
 
 bool StereoVideoDecoder::initializeTensorRT() {
@@ -126,7 +126,7 @@ bool StereoVideoDecoder::initializeTensorRT() {
         return true;
     }
     
-    ID3D11Device* device = rgb_decoder_->getHwDecoder()->getD3D11Device();
+    ID3D11Device* device = float_rgb_decoder_->getRgbDecoder()->getHwDecoder()->getD3D11Device();
     if (!device) {
         std::cerr << "Failed to get D3D11 device" << std::endl;
         return false;

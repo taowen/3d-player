@@ -5,7 +5,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
-class RgbVideoDecoder;
+class FloatRgbVideoDecoder;
 
 // TensorRT 前向声明 - 使用结构体包装参数
 struct TensorDims {
@@ -36,7 +36,7 @@ public:
     ID3D11Device* getD3D11Device() const;
     
 private:
-    std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
+    std::unique_ptr<FloatRgbVideoDecoder> float_rgb_decoder_;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> stereo_texture_;
     bool is_open_;
     

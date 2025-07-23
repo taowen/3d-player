@@ -63,13 +63,13 @@ Write-Host "========================================" -ForegroundColor Cyan
 try {
     & "build/Debug/integration-test.exe" $testFile -r compact
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✓ PASSED: $testFile" -ForegroundColor Green
+        Write-Host "PASSED: $testFile" -ForegroundColor Green
         exit 0
     } else {
-        Write-Host "✗ FAILED: $testFile" -ForegroundColor Red
+        Write-Host "FAILED: $testFile" -ForegroundColor Red
         exit 1
     }
 } catch {
-    Write-Host "✗ ERROR: $testFile - $_" -ForegroundColor Red
+    Write-Host "ERROR: $testFile - $_" -ForegroundColor Red
     exit 1
 }

@@ -17,6 +17,69 @@ extern "C" {
 
 namespace {
     static constexpr size_t RGBA_FLOAT_BYTES = 16; // R32G32B32A32_FLOAT
+    
+    // BMP文件头结构
+    #pragma pack(push, 1)
+    struct BMPFileHeader {
+        uint16_t bfType = 0x4D42;     // "BM"
+        uint32_t bfSize;
+        uint16_t bfReserved1 = 0;
+        uint16_t bfReserved2 = 0;
+        uint32_t bfOffBits = 54;      // 文件头+信息头大小
+    };
+
+    struct BMPInfoHeader {
+        uint32_t biSize = 40;
+        int32_t biWidth;
+        int32_t biHeight;
+        uint16_t biPlanes = 1;
+        uint16_t biBitCount = 24;     // 24位RGB
+        uint32_t biCompression = 0;   // 无压缩
+        uint32_t biSizeImage = 0;
+        int32_t biXPelsPerMeter = 0;
+        int32_t biYPelsPerMeter = 0;
+        uint32_t biClrUsed = 0;
+        uint32_t biClrImportant = 0;
+    };
+    #pragma pack(pop)
+    
+    // 保存CUDA输出为BMP文件
+    void saveCudaOutputToBMP(const std::vector<float>& pixels, uint32_t width, uint32_t height, const std::string& filename) {
+        uint32_t row_size = ((width * 3 + 3) / 4) * 4;
+        uint32_t image_size = row_size * height;
+        
+        BMPFileHeader file_header;
+        file_header.bfSize = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+        
+        BMPInfoHeader info_header;
+        info_header.biWidth = width;
+        info_header.biHeight = height;
+        info_header.biSizeImage = image_size;
+        
+        std::ofstream file(filename, std::ios::binary);
+        if (file.is_open()) {
+            file.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+            file.write(reinterpret_cast<const char*>(&info_header), sizeof(info_header));
+            
+            std::vector<uint8_t> row_data(row_size, 0);
+            for (int y = height - 1; y >= 0; --y) {
+                for (uint32_t x = 0; x < width; ++x) {
+                    size_t pixel_idx = (y * width + x) * 4;
+                    
+                    // 浮点值[0,1]转换为8位整数[0,255]，RGBA -> BGR
+                    uint8_t r = static_cast<uint8_t>(std::round(pixels[pixel_idx + 0] * 255.0f));
+                    uint8_t g = static_cast<uint8_t>(std::round(pixels[pixel_idx + 1] * 255.0f));
+                    uint8_t b = static_cast<uint8_t>(std::round(pixels[pixel_idx + 2] * 255.0f));
+                    
+                    row_data[x * 3 + 0] = b; // B
+                    row_data[x * 3 + 1] = g; // G
+                    row_data[x * 3 + 2] = r; // R
+                }
+                file.write(reinterpret_cast<const char*>(row_data.data()), row_size);
+            }
+            file.close();
+        }
+    }
 }
 
 
@@ -96,18 +159,18 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
         return false;
     }
     
-    FloatRgbVideoDecoder::DecodedFloatRgbFrame float_rgb_frame;
-    if (!float_rgb_decoder_->readNextFrame(float_rgb_frame)) {
+    if (!float_rgb_decoder_->readNextFrame(current_input_frame_)) {
         return false;
     }
     
-    if (!convertToStereo(float_rgb_frame.cuda_buffer, stereo_texture_.Get())) {
+    if (!convertToStereo(current_input_frame_.cuda_buffer, stereo_texture_.Get())) {
         std::cerr << "Failed to convert frame to stereo" << std::endl;
         return false;
     }
     
     frame.stereo_texture = stereo_texture_;
-    frame.frame = float_rgb_frame.rgb_frame.hw_frame.frame;
+    frame.frame = current_input_frame_.rgb_frame.hw_frame.frame;
+    frame.input_frame = &current_input_frame_;  // 提供输入帧的引用
     frame.is_valid = true;
     
     return true;
@@ -306,6 +369,22 @@ bool StereoVideoDecoder::copyInferenceOutput(ID3D11Texture2D* output_stereo, con
     }
     
     size_t output_pitch = output_desc.Width * RGBA_FLOAT_BYTES;
+    
+    // 调试：保存CUDA推理输出到BMP (仅前3帧)
+    static int debug_frame_count = 0;
+    if (debug_frame_count < 3) {
+        size_t total_size = output_desc.Width * output_desc.Height * 4 * sizeof(float);
+        std::vector<float> host_output(output_desc.Width * output_desc.Height * 4);
+        
+        cudaError_t copy_err = cudaMemcpy(host_output.data(), device_output_, total_size, cudaMemcpyDeviceToHost);
+        if (copy_err == cudaSuccess) {
+            saveCudaOutputToBMP(host_output, output_desc.Width, output_desc.Height, 
+                              "cuda_output_frame_" + std::to_string(debug_frame_count) + ".bmp");
+            std::cout << "Saved CUDA output frame: cuda_output_frame_" << debug_frame_count << ".bmp" << std::endl;
+        }
+        debug_frame_count++;
+    }
+    
     cuda_err = cudaMemcpy2DToArray(
         output_array, 0, 0,
         device_output_,

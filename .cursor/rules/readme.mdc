@@ -71,8 +71,8 @@ tests/
 ├── test_d3d11_cuda_interop.cpp # D3D11-CUDA互操作测试
 ├── test_stereo_video_decoder.cpp # 立体视频解码器测试
 test_data/
-├── sample_hw.mkv             # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码
-└── sample_with_audio.mkv     # 测试文件 - H.264编码，1280x720@30fps，支持硬件解码，包含AAC音频
+├── sample_hw.mkv             # 测试文件 - H.264编码，支持硬件解码
+└── sample_with_audio.mkv     # 测试文件 - H.264编码，支持硬件解码，包含AAC音频
 cmake/
 ├── FindFFmpeg.cmake          # FFmpeg 库查找和配置
 ├── FindTensorRT.cmake        # TensorRT 库查找和配置
@@ -122,7 +122,7 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 - 基于 AudioVideoPlayer 的交换链渲染和音频输出
 - 时间驱动的自动音视频同步播放
 - 支持命令行参数传入音视频文件路径
-- 1280x720 窗口分辨率，自动居中显示
+- 自适应视频分辨率窗口，自动居中显示
 - 简洁的用户交互：ESC 键退出
 
 **实现细节**：
@@ -182,7 +182,7 @@ powershell -ExecutionPolicy Bypass -File test-all.ps1
 ### 3D Player 使用方法
 - **功能**：从头到尾顺序播放音视频到 Windows 窗口
 - **控制**：按 ESC 键退出，音视频播放完成后自动退出
-- **窗口**：1280x720 分辨率，自动居中显示
+- **窗口**：自适应视频分辨率，自动居中显示
 - **要求**：必须支持 DirectX 11 硬件解码
 - **音频**：自动检测音频流，支持 WASAPI 音频输出
 

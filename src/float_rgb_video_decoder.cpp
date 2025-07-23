@@ -144,7 +144,9 @@ bool FloatRgbVideoDecoder::initializeConversionResources() {
         [numthreads(8, 8, 1)]
         void main(uint3 id : SV_DispatchThreadID)
         {
-            if (id.x >= 1280 || id.y >= 720) return;
+            uint width, height;
+            OutputTexture.GetDimensions(width, height);
+            if (id.x >= width || id.y >= height) return;
             
             // 从BGRA8转换为浮点RGBA
             float4 bgra = InputTexture[id.xy];

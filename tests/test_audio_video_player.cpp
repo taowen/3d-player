@@ -283,8 +283,8 @@ TEST_CASE("AudioVideoPlayer component access", "[audio_video_player][test_audio_
         REQUIRE(audio_player != nullptr);
         
         // 测试解码器访问
-        RgbVideoDecoder* rgb_decoder = player.getRgbDecoder();
-        REQUIRE(rgb_decoder != nullptr);
+        D3dStereoVideoDecoder* stereo_decoder = player.getStereoDecoder();
+        REQUIRE(stereo_decoder != nullptr);
         
         // 测试 D3D11 设备访问
         ID3D11Device* device = player.getD3D11Device();

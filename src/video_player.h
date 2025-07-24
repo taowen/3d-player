@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rgb_video_decoder.h"
+#include "d3d_stereo_video_decoder.h"
 #include "mkv_stream_reader.h"
 #include <memory>
 #include <string>
@@ -9,7 +9,7 @@
 #include <wrl/client.h>
 #include <dxgi.h>
 
-// D3D11 headers are already included through rgb_video_decoder.h
+// D3D11 headers are already included through d3d_stereo_video_decoder.h
 
 using Microsoft::WRL::ComPtr;
 
@@ -28,7 +28,7 @@ enum class RenderTargetType {
  * @brief 视频播放器，支持时间驱动的播放控制和预解码缓冲
  * 
  * 特性：
- * - 基于 RgbVideoDecoder 提供 RGB 纹理输出
+ * - 基于 D3dStereoVideoDecoder 提供立体视觉纹理输出
  * - 支持时间驱动的播放控制 (onTimer)
  * - 预解码缓冲机制，提前储备下一帧
  * - 顺序播放，不支持跳转
@@ -103,10 +103,10 @@ public:
     bool isEOF() const;
     
     /**
-     * @brief 获取内部的 RGB 解码器实例
-     * @return RgbVideoDecoder* RGB 解码器指针，可能为 nullptr
+     * @brief 获取内部的立体视频解码器实例
+     * @return D3dStereoVideoDecoder* 立体视频解码器指针，可能为 nullptr
      */
-    RgbVideoDecoder* getRgbDecoder() const;
+    D3dStereoVideoDecoder* getStereoDecoder() const;
     
     /**
      * @brief 获取 D3D11 设备
@@ -135,14 +135,14 @@ public:
     int getHeight() const;
 
 private:
-    std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
+    std::unique_ptr<D3dStereoVideoDecoder> d3d_stereo_decoder_;
     
     // 帧缓冲管理
-    std::queue<RgbVideoDecoder::DecodedRgbFrame> frame_buffer_;
+    std::queue<DecodedStereoFrameD3D> frame_buffer_;
     ComPtr<ID3D11Texture2D> current_frame_texture_;
     double current_frame_time_ = 0.0;
     
-    // RgbVideoDecoder 不暴露流信息
+    // D3dStereoVideoDecoder 不暴露流信息
     
     // 渲染目标管理
     RenderTargetType render_target_type_;

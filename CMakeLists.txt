@@ -107,6 +107,7 @@ add_executable(3d_player
     src/audio_player.cpp
     src/audio_video_player.cpp
     src/stereo_video_decoder.cpp
+    src/d3d_stereo_video_decoder.cpp
     src/tensorrt_utils.cpp
 )
 

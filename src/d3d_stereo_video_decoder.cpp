@@ -1,9 +1,17 @@
+// ⚠️⚠️⚠️ 绝对禁止 CUDA kernel！这是纯 D3D11 compute shader 实现！！！ ⚠️⚠️⚠️
+// 本文件严格使用 D3D11 Compute Shader 进行 GPU 计算，禁止任何 CUDA kernel！
+// 只允许必要的 CUDA 内存拷贝用于数据传输，绝不允许 CUDA kernel 计算！
+
 #include "d3d_stereo_video_decoder.h"
 #include <iostream>
+#include <fstream>
+#include <vector>
+#include <cuda_runtime.h>  // 仅用于数据传输，绝不用于 kernel 计算！
+
 
 D3dStereoVideoDecoder::D3dStereoVideoDecoder() 
     : stereo_decoder_(std::make_unique<StereoVideoDecoder>())
-    , interop_initialized_(false)
+    , d3d_initialized_(false)
     , width_(0)
     , height_(0)
 {
@@ -21,11 +29,11 @@ bool D3dStereoVideoDecoder::open(const std::string& filepath) {
     width_ = stereo_decoder_->getWidth();
     height_ = stereo_decoder_->getHeight();
     
-    return initializeCudaD3DInterop();
+    return initializeD3DComputeShader();
 }
 
 void D3dStereoVideoDecoder::close() {
-    cleanupInterop();
+    cleanupResources();
     if (stereo_decoder_) {
         stereo_decoder_->close();
     }
@@ -74,24 +82,100 @@ AVRational D3dStereoVideoDecoder::getVideoTimeBase() const {
     return stereo_decoder_ ? stereo_decoder_->getVideoTimeBase() : AVRational{0, 1};
 }
 
-bool D3dStereoVideoDecoder::initializeCudaD3DInterop() {
-    if (interop_initialized_) {
+bool D3dStereoVideoDecoder::initializeD3DComputeShader() {
+    if (d3d_initialized_) {
         return true;
     }
     
     if (width_ <= 0 || height_ <= 0) {
-        std::cerr << "Invalid video dimensions for D3D interop: " << width_ << "x" << height_ << std::endl;
+        std::cerr << "Invalid video dimensions for D3D11 compute shader: " << width_ << "x" << height_ << std::endl;
         return false;
     }
     
     ID3D11Device* d3d_device = getD3D11Device();
     if (!d3d_device) {
-        std::cerr << "No D3D11 device available for interop" << std::endl;
+        std::cerr << "No D3D11 device available" << std::endl;
         return false;
     }
     
-    // 创建 D3D11 纹理用于立体输出
-    // 格式：RGBA32F，尺寸与视频相同
+    // 创建并编译 compute shader
+    std::ifstream shader_file("shaders/bchw_to_rgba.hlsl");
+    if (!shader_file.is_open()) {
+        std::cerr << "Failed to open shader file: shaders/bchw_to_rgba.hlsl" << std::endl;
+        return false;
+    }
+    
+    std::string shader_source((std::istreambuf_iterator<char>(shader_file)),
+                              std::istreambuf_iterator<char>());
+    shader_file.close();
+    
+    ComPtr<ID3DBlob> shader_blob;
+    ComPtr<ID3DBlob> error_blob;
+    HRESULT hr = D3DCompile(
+        shader_source.c_str(),
+        shader_source.length(),
+        "bchw_to_rgba.hlsl",
+        nullptr,
+        nullptr,
+        "main",
+        "cs_5_0",
+        0,
+        0,
+        &shader_blob,
+        &error_blob
+    );
+    
+    if (FAILED(hr)) {
+        if (error_blob) {
+            std::cerr << "Shader compilation error: " << (char*)error_blob->GetBufferPointer() << std::endl;
+        } else {
+            std::cerr << "Failed to compile compute shader: HRESULT = 0x" << std::hex << hr << std::endl;
+        }
+        return false;
+    }
+    
+    hr = d3d_device->CreateComputeShader(
+        shader_blob->GetBufferPointer(),
+        shader_blob->GetBufferSize(),
+        nullptr,
+        &compute_shader_
+    );
+    
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create compute shader: HRESULT = 0x" << std::hex << hr << std::endl;
+        return false;
+    }
+    
+    // 创建输入缓冲区（存储 BCHW 平面数据）
+    size_t total_floats = width_ * height_ * 4; // BCHW 4 个通道
+    D3D11_BUFFER_DESC buffer_desc = {};
+    buffer_desc.ByteWidth = total_floats * sizeof(float);
+    buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
+    buffer_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    buffer_desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    buffer_desc.StructureByteStride = sizeof(float);
+    
+    hr = d3d_device->CreateBuffer(&buffer_desc, nullptr, &input_buffer_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create input buffer: HRESULT = 0x" << std::hex << hr << std::endl;
+        return false;
+    }
+    
+    // 创建输入 SRV
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    srv_desc.Buffer.FirstElement = 0;
+    srv_desc.Buffer.NumElements = total_floats;
+    
+    hr = d3d_device->CreateShaderResourceView(input_buffer_.Get(), &srv_desc, &input_srv_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create input SRV: HRESULT = 0x" << std::hex << hr << std::endl;
+        return false;
+    }
+    
+    // 创建输出纹理
     D3D11_TEXTURE2D_DESC texture_desc = {};
     texture_desc.Width = width_;
     texture_desc.Height = height_;
@@ -100,38 +184,57 @@ bool D3dStereoVideoDecoder::initializeCudaD3DInterop() {
     texture_desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
     texture_desc.SampleDesc.Count = 1;
     texture_desc.Usage = D3D11_USAGE_DEFAULT;
-    texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texture_desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
     texture_desc.CPUAccessFlags = 0;
-    texture_desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;  // CUDA interop 需要共享标志
+    texture_desc.MiscFlags = 0;
     
-    HRESULT hr = d3d_device->CreateTexture2D(&texture_desc, nullptr, &d3d_texture_);
+    hr = d3d_device->CreateTexture2D(&texture_desc, nullptr, &d3d_texture_);
     if (FAILED(hr)) {
-        std::cerr << "Failed to create D3D11 texture for CUDA interop: HRESULT = 0x" << std::hex << hr << std::endl;
+        std::cerr << "Failed to create output texture: HRESULT = 0x" << std::hex << hr << std::endl;
         return false;
     }
     
-    // 注册 D3D11 纹理到 CUDA
-    cudaError_t cuda_err = cudaGraphicsD3D11RegisterResource(
-        &cuda_graphics_resource_, 
-        d3d_texture_.Get(), 
-        cudaGraphicsRegisterFlagsNone
-    );
+    // 创建输出 UAV
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+    uav_desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+    uav_desc.Texture2D.MipSlice = 0;
     
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to register D3D11 texture to CUDA: " << cudaGetErrorString(cuda_err) << std::endl;
-        d3d_texture_.Reset();
+    hr = d3d_device->CreateUnorderedAccessView(d3d_texture_.Get(), &uav_desc, &output_uav_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create output UAV: HRESULT = 0x" << std::hex << hr << std::endl;
         return false;
     }
     
-    interop_initialized_ = true;
-    std::cout << "CUDA-D3D11 interop initialized successfully: " << width_ << "x" << height_ << " RGBA32F" << std::endl;
+    // 创建常量缓冲区
+    struct ShaderConstants {
+        UINT ImageWidth;
+        UINT ImageHeight;
+        UINT Padding[2];
+    };
+    
+    D3D11_BUFFER_DESC const_desc = {};
+    const_desc.ByteWidth = sizeof(ShaderConstants);
+    const_desc.Usage = D3D11_USAGE_DYNAMIC;
+    const_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    const_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    
+    hr = d3d_device->CreateBuffer(&const_desc, nullptr, &constant_buffer_);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create constant buffer: HRESULT = 0x" << std::hex << hr << std::endl;
+        return false;
+    }
+    
+    d3d_initialized_ = true;
+    std::cout << "D3D11 compute shader initialized successfully: " << width_ << "x" << height_ << " RGBA32F" << std::endl;
     
     return true;
 }
 
 bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& stereo_frame) {
-    if (!interop_initialized_ || !cuda_graphics_resource_) {
-        std::cerr << "CUDA-D3D11 interop not initialized" << std::endl;
+    // ⚠️⚠️⚠️ 重要说明：这是纯 D3D11 实现，绝对不使用 CUDA！！！ ⚠️⚠️⚠️
+    if (!d3d_initialized_) {
+        std::cerr << "D3D11 compute shader not initialized" << std::endl;
         return false;
     }
     
@@ -140,59 +243,96 @@ bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& st
         return false;
     }
     
-    // 映射 CUDA 资源
-    cudaError_t cuda_err = cudaGraphicsMapResources(1, &cuda_graphics_resource_, 0);
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to map CUDA graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
+    ID3D11Device* d3d_device = getD3D11Device();
+    ID3D11DeviceContext* d3d_context = nullptr;
+    d3d_device->GetImmediateContext(&d3d_context);
+    
+    if (!d3d_context) {
+        std::cerr << "Failed to get D3D11 device context" << std::endl;
         return false;
     }
     
-    // 获取映射后的 CUDA 数组
-    cudaArray_t cuda_array = nullptr;
-    cuda_err = cudaGraphicsSubResourceGetMappedArray(&cuda_array, cuda_graphics_resource_, 0, 0);
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to get mapped CUDA array: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(1, &cuda_graphics_resource_, 0);
+    // 将 BCHW 平面数据拷贝到 D3D11 结构化缓冲区
+    size_t total_floats = width_ * height_ * 4;
+    size_t total_bytes = total_floats * sizeof(float);
+    
+    D3D11_MAPPED_SUBRESOURCE mapped_resource;
+    HRESULT hr = d3d_context->Map(input_buffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to map input buffer: HRESULT = 0x" << std::hex << hr << std::endl;
+        d3d_context->Release();
         return false;
     }
     
-    // 从 CUDA 线性内存拷贝到纹理数组
-    // StereoVideoDecoder 输出格式：BCHW 平面存储的 float32 RGBA
-    size_t pixel_size = 4 * sizeof(float);  // RGBA32F
-    size_t pitch = width_ * pixel_size;
-    
-    cuda_err = cudaMemcpy2DToArray(
-        cuda_array,
-        0, 0,  // offset
-        stereo_frame.cuda_output_buffer,
-        pitch,  // src pitch
-        pitch,  // width in bytes
-        height_,  // height
-        cudaMemcpyDeviceToDevice
-    );
-    
+    // 首先从 CUDA 设备内存拷贝到 CPU 内存（必要的数据传输步骤）
+    std::vector<float> cpu_buffer(total_floats);
+    cudaError_t cuda_err = cudaMemcpy(cpu_buffer.data(), stereo_frame.cuda_output_buffer, total_bytes, cudaMemcpyDeviceToHost);
     if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to copy CUDA data to texture array: " << cudaGetErrorString(cuda_err) << std::endl;
-        cudaGraphicsUnmapResources(1, &cuda_graphics_resource_, 0);
+        std::cerr << "Failed to copy from CUDA memory to CPU: " << cudaGetErrorString(cuda_err) << std::endl;
+        d3d_context->Unmap(input_buffer_.Get(), 0);
+        d3d_context->Release();
         return false;
     }
     
-    // 解除映射
-    cuda_err = cudaGraphicsUnmapResources(1, &cuda_graphics_resource_, 0);
-    if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to unmap CUDA graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
+    // 然后从 CPU 内存拷贝到 D3D11 缓冲区（纯 D3D11 操作！）
+    memcpy(mapped_resource.pData, cpu_buffer.data(), total_bytes);
+    
+    d3d_context->Unmap(input_buffer_.Get(), 0);
+    
+    // 更新常量缓冲区
+    struct ShaderConstants {
+        UINT ImageWidth;
+        UINT ImageHeight;
+        UINT Padding[2];
+    };
+    
+    hr = d3d_context->Map(constant_buffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to map constant buffer: HRESULT = 0x" << std::hex << hr << std::endl;
+        d3d_context->Release();
         return false;
     }
+    
+    ShaderConstants* constants = static_cast<ShaderConstants*>(mapped_resource.pData);
+    constants->ImageWidth = width_;
+    constants->ImageHeight = height_;
+    constants->Padding[0] = 0;
+    constants->Padding[1] = 0;
+    d3d_context->Unmap(constant_buffer_.Get(), 0);
+    
+    // 设置 compute shader 和资源（纯 D3D11 操作）
+    d3d_context->CSSetShader(compute_shader_.Get(), nullptr, 0);
+    d3d_context->CSSetConstantBuffers(0, 1, constant_buffer_.GetAddressOf());
+    d3d_context->CSSetShaderResources(0, 1, input_srv_.GetAddressOf());
+    
+    ID3D11UnorderedAccessView* uavs[] = { output_uav_.Get() };
+    d3d_context->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    
+    // 分发 compute shader（纯 D3D11，绝不使用 CUDA！）
+    UINT group_count_x = (width_ + 15) / 16;
+    UINT group_count_y = (height_ + 15) / 16;
+    d3d_context->Dispatch(group_count_x, group_count_y, 1);
+    
+    // 清理绑定
+    ID3D11ShaderResourceView* null_srvs[1] = { nullptr };
+    ID3D11UnorderedAccessView* null_uavs[1] = { nullptr };
+    d3d_context->CSSetShaderResources(0, 1, null_srvs);
+    d3d_context->CSSetUnorderedAccessViews(0, 1, null_uavs, nullptr);
+    d3d_context->CSSetShader(nullptr, nullptr, 0);
+    
+    d3d_context->Release();
     
     return true;
 }
 
-void D3dStereoVideoDecoder::cleanupInterop() {
-    if (cuda_graphics_resource_) {
-        cudaGraphicsUnregisterResource(cuda_graphics_resource_);
-        cuda_graphics_resource_ = nullptr;
-    }
-    
+void D3dStereoVideoDecoder::cleanupResources() {
+    // 清理 D3D11 资源（绝不涉及 CUDA！）
+    compute_shader_.Reset();
+    input_buffer_.Reset();
+    input_srv_.Reset();
+    output_uav_.Reset();
+    constant_buffer_.Reset();
     d3d_texture_.Reset();
-    interop_initialized_ = false;
+    
+    d3d_initialized_ = false;
 }

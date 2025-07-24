@@ -85,6 +85,8 @@ copy_ffmpeg_dlls(integration-test)
 # 添加 CUDA 支持
 find_package(CUDAToolkit REQUIRED)
 
+# D3D11 compute shader 不需要特殊编译设置
+
 # 添加 TensorRT 支持
 include(cmake/FindTensorRT.cmake)
 target_link_tensorrt(integration-test)
@@ -134,6 +136,8 @@ target_link_libraries(3d_player PRIVATE
 # 链接 FFmpeg
 target_link_ffmpeg(3d_player)
 copy_ffmpeg_dlls(3d_player)
+
+# D3D11 compute shader 不需要特殊编译设置
 
 # 链接 TensorRT
 target_link_tensorrt(3d_player)

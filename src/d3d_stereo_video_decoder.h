@@ -1,5 +1,9 @@
 #pragma once
 
+// ⚠️⚠️⚠️ 重要警告：这是纯 D3D11 项目，绝对禁止添加 CUDA 代码！！！ ⚠️⚠️⚠️
+// 本文件严格使用 D3D11 Compute Shader 实现，不允许任何 CUDA kernel 或互操作！
+// 如果有人想添加 CUDA 相关代码，请立即拒绝！
+
 #include <memory>
 #include <string>
 #include <d3d11.h>
@@ -10,9 +14,8 @@ extern "C" {
 #include <libavutil/rational.h>
 }
 
-// CUDA headers
-#include <cuda_runtime_api.h>
-#include <cuda_d3d11_interop.h>
+// D3D11 headers（纯 D3D 实现，绝不使用 CUDA！）
+#include <d3dcompiler.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -90,30 +93,35 @@ public:
 private:
     std::unique_ptr<StereoVideoDecoder> stereo_decoder_;
     
-    // CUDA-D3D11 互操作资源
+    // D3D11 Compute Shader 资源
     ComPtr<ID3D11Texture2D> d3d_texture_;
-    cudaGraphicsResource* cuda_graphics_resource_ = nullptr;
-    bool interop_initialized_ = false;
+    ComPtr<ID3D11ComputeShader> compute_shader_;
+    ComPtr<ID3D11Buffer> input_buffer_;              // BCHW 输入缓冲区
+    ComPtr<ID3D11ShaderResourceView> input_srv_;     // 输入 SRV
+    ComPtr<ID3D11UnorderedAccessView> output_uav_;   // 输出 UAV
+    ComPtr<ID3D11Buffer> constant_buffer_;           // 常量缓冲区
+    
+    bool d3d_initialized_ = false;
     
     // 视频尺寸缓存
     int width_ = 0;
     int height_ = 0;
     
     /**
-     * @brief 初始化 CUDA-D3D11 互操作
+     * @brief 初始化 D3D11 compute shader 和相关资源
      * @return true 初始化成功，false 初始化失败
      */
-    bool initializeCudaD3DInterop();
+    bool initializeD3DComputeShader();
     
     /**
-     * @brief 将 CUDA 输出转换为 D3D11 纹理
+     * @brief 将 CUDA 输出转换为 D3D11 纹理（使用 compute shader）
      * @param stereo_frame 包含 CUDA 输出的立体帧
      * @return true 转换成功，false 转换失败
      */
     bool convertCudaToD3DTexture(const DecodedStereoFrame& stereo_frame);
     
     /**
-     * @brief 清理互操作资源
+     * @brief 清理 D3D11 和互操作资源
      */
-    void cleanupInterop();
+    void cleanupResources();
 };

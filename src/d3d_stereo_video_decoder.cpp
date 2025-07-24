@@ -146,15 +146,15 @@ bool D3dStereoVideoDecoder::initializeD3DComputeShader() {
         return false;
     }
     
-    // 创建输入缓冲区（存储 BCHW 平面数据）
+    // 创建支持 CUDA 互操作的输入缓冲区（存储 BCHW 平面数据）
     size_t total_floats = width_ * height_ * 4; // BCHW 4 个通道
     D3D11_BUFFER_DESC buffer_desc = {};
     buffer_desc.ByteWidth = total_floats * sizeof(float);
-    buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
-    buffer_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    buffer_desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    buffer_desc.StructureByteStride = sizeof(float);
+    buffer_desc.Usage = D3D11_USAGE_DEFAULT;  // 改为 DEFAULT 以支持 CUDA 互操作
+    buffer_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+    buffer_desc.CPUAccessFlags = 0;  // 不需要 CPU 访问
+    buffer_desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;  // 用于 CUDA 互操作
+    buffer_desc.StructureByteStride = 0;  // Raw buffer 不需要 stride
     
     hr = d3d_device->CreateBuffer(&buffer_desc, nullptr, &input_buffer_);
     if (FAILED(hr)) {
@@ -162,9 +162,20 @@ bool D3dStereoVideoDecoder::initializeD3DComputeShader() {
         return false;
     }
     
-    // 创建输入 SRV
+    // 注册 D3D11 缓冲区到 CUDA 互操作
+    cudaError_t cuda_err = cudaGraphicsD3D11RegisterResource(
+        reinterpret_cast<cudaGraphicsResource**>(&cuda_graphics_resource_), 
+        input_buffer_.Get(), 
+        cudaGraphicsRegisterFlagsNone
+    );
+    if (cuda_err != cudaSuccess) {
+        std::cerr << "Failed to register CUDA graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
+        return false;
+    }
+    
+    // 创建输入 SRV（使用 raw buffer 格式）
     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-    srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+    srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
     srv_desc.Buffer.FirstElement = 0;
     srv_desc.Buffer.NumElements = total_floats;
@@ -232,7 +243,6 @@ bool D3dStereoVideoDecoder::initializeD3DComputeShader() {
 }
 
 bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& stereo_frame) {
-    // ⚠️⚠️⚠️ 重要说明：这是纯 D3D11 实现，绝对不使用 CUDA！！！ ⚠️⚠️⚠️
     if (!d3d_initialized_) {
         std::cerr << "D3D11 compute shader not initialized" << std::endl;
         return false;
@@ -252,32 +262,42 @@ bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& st
         return false;
     }
     
-    // 将 BCHW 平面数据拷贝到 D3D11 结构化缓冲区
-    size_t total_floats = width_ * height_ * 4;
-    size_t total_bytes = total_floats * sizeof(float);
-    
-    D3D11_MAPPED_SUBRESOURCE mapped_resource;
-    HRESULT hr = d3d_context->Map(input_buffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to map input buffer: HRESULT = 0x" << std::hex << hr << std::endl;
-        d3d_context->Release();
-        return false;
-    }
-    
-    // 首先从 CUDA 设备内存拷贝到 CPU 内存（必要的数据传输步骤）
-    std::vector<float> cpu_buffer(total_floats);
-    cudaError_t cuda_err = cudaMemcpy(cpu_buffer.data(), stereo_frame.cuda_output_buffer, total_bytes, cudaMemcpyDeviceToHost);
+    // 映射 CUDA 图形资源以获取 D3D11 缓冲区指针
+    cudaError_t cuda_err = cudaGraphicsMapResources(1, reinterpret_cast<cudaGraphicsResource**>(&cuda_graphics_resource_), 0);
     if (cuda_err != cudaSuccess) {
-        std::cerr << "Failed to copy from CUDA memory to CPU: " << cudaGetErrorString(cuda_err) << std::endl;
-        d3d_context->Unmap(input_buffer_.Get(), 0);
+        std::cerr << "Failed to map CUDA graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
         d3d_context->Release();
         return false;
     }
     
-    // 然后从 CPU 内存拷贝到 D3D11 缓冲区（纯 D3D11 操作！）
-    memcpy(mapped_resource.pData, cpu_buffer.data(), total_bytes);
+    void* d3d_buffer_ptr = nullptr;
+    size_t buffer_size = 0;
+    cuda_err = cudaGraphicsResourceGetMappedPointer(&d3d_buffer_ptr, &buffer_size, 
+        static_cast<cudaGraphicsResource*>(cuda_graphics_resource_));
+    if (cuda_err != cudaSuccess) {
+        std::cerr << "Failed to get mapped CUDA pointer: " << cudaGetErrorString(cuda_err) << std::endl;
+        cudaGraphicsUnmapResources(1, reinterpret_cast<cudaGraphicsResource**>(&cuda_graphics_resource_), 0);
+        d3d_context->Release();
+        return false;
+    }
     
-    d3d_context->Unmap(input_buffer_.Get(), 0);
+    // 直接从 CUDA 输出缓冲区拷贝到映射的 D3D11 缓冲区（设备到设备拷贝）
+    size_t total_bytes = width_ * height_ * 4 * sizeof(float);
+    cuda_err = cudaMemcpy(d3d_buffer_ptr, stereo_frame.cuda_output_buffer, total_bytes, cudaMemcpyDeviceToDevice);
+    if (cuda_err != cudaSuccess) {
+        std::cerr << "Failed to copy from CUDA output to D3D11 buffer: " << cudaGetErrorString(cuda_err) << std::endl;
+        cudaGraphicsUnmapResources(1, reinterpret_cast<cudaGraphicsResource**>(&cuda_graphics_resource_), 0);
+        d3d_context->Release();
+        return false;
+    }
+    
+    // 解除映射 CUDA 资源
+    cuda_err = cudaGraphicsUnmapResources(1, reinterpret_cast<cudaGraphicsResource**>(&cuda_graphics_resource_), 0);
+    if (cuda_err != cudaSuccess) {
+        std::cerr << "Failed to unmap CUDA graphics resource: " << cudaGetErrorString(cuda_err) << std::endl;
+        d3d_context->Release();
+        return false;
+    }
     
     // 更新常量缓冲区
     struct ShaderConstants {
@@ -286,7 +306,8 @@ bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& st
         UINT Padding[2];
     };
     
-    hr = d3d_context->Map(constant_buffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
+    D3D11_MAPPED_SUBRESOURCE mapped_resource;
+    HRESULT hr = d3d_context->Map(constant_buffer_.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource);
     if (FAILED(hr)) {
         std::cerr << "Failed to map constant buffer: HRESULT = 0x" << std::hex << hr << std::endl;
         d3d_context->Release();
@@ -326,7 +347,13 @@ bool D3dStereoVideoDecoder::convertCudaToD3DTexture(const DecodedStereoFrame& st
 }
 
 void D3dStereoVideoDecoder::cleanupResources() {
-    // 清理 D3D11 资源（绝不涉及 CUDA！）
+    // 清理 CUDA 互操作资源
+    if (cuda_graphics_resource_) {
+        cudaGraphicsUnregisterResource(static_cast<cudaGraphicsResource*>(cuda_graphics_resource_));
+        cuda_graphics_resource_ = nullptr;
+    }
+    
+    // 清理 D3D11 资源
     compute_shader_.Reset();
     input_buffer_.Reset();
     input_srv_.Reset();

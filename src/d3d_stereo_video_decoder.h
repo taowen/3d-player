@@ -14,8 +14,9 @@ extern "C" {
 #include <libavutil/rational.h>
 }
 
-// D3D11 headers（纯 D3D 实现，绝不使用 CUDA！）
+// D3D11 headers 和 CUDA 互操作支持
 #include <d3dcompiler.h>
+#include <cuda_d3d11_interop.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -96,10 +97,13 @@ private:
     // D3D11 Compute Shader 资源
     ComPtr<ID3D11Texture2D> d3d_texture_;
     ComPtr<ID3D11ComputeShader> compute_shader_;
-    ComPtr<ID3D11Buffer> input_buffer_;              // BCHW 输入缓冲区
+    ComPtr<ID3D11Buffer> input_buffer_;              // BCHW 输入缓冲区（支持 CUDA 互操作）
     ComPtr<ID3D11ShaderResourceView> input_srv_;     // 输入 SRV
     ComPtr<ID3D11UnorderedAccessView> output_uav_;   // 输出 UAV
     ComPtr<ID3D11Buffer> constant_buffer_;           // 常量缓冲区
+    
+    // CUDA 互操作资源
+    void* cuda_graphics_resource_ = nullptr;         // CUDA 图形资源句柄
     
     bool d3d_initialized_ = false;
     

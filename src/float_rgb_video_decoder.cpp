@@ -179,9 +179,9 @@ bool FloatRgbVideoDecoder::initializeConversionResources() {
         {
             if (id.x >= width || id.y >= height) return;
             
-            // 从BGRA8转换为浮点RGBA，交换B和R通道
-            float4 bgra = InputTexture[id.xy];
-            float4 rgba = float4(bgra.z, bgra.y, bgra.x, bgra.w);  // BGRA -> RGBA
+            // 读取BGRA8像素并直接使用，无需通道交换
+            // 因为测试表明输入已经是正确的RGB格式
+            float4 rgba = InputTexture[id.xy];
             
             // 计算BCHW布局中的偏移量
             // B=1, C=4, H=height, W=width

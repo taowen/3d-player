@@ -28,6 +28,8 @@ const std::string TEST_FILE = "test_data/sample_hw.mkv";
 // 前向声明
 std::vector<float> readD3D11FloatTexturePixels(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11Texture2D* texture);
 std::vector<float> readCudaBufferPixels(void* cuda_buffer, size_t buffer_size);
+void saveCudaBufferToBMP(void* cuda_buffer, size_t buffer_size, uint32_t width, uint32_t height, const std::string& filename);
+void saveCudaBufferAsInterleavedToBMP(void* cuda_buffer, size_t buffer_size, uint32_t width, uint32_t height, const std::string& filename);
 
 // BMP文件头结构
 #pragma pack(push, 1)
@@ -257,6 +259,101 @@ std::vector<float> readD3D11FloatTexturePixels(ID3D11Device* device, ID3D11Devic
     return pixels;
 }
 
+// 辅助函数：将CUDA buffer数据保存为BMP文件（BCHW布局转换为标准RGB）
+void saveCudaBufferToBMP(void* cuda_buffer, size_t buffer_size, uint32_t width, uint32_t height, const std::string& filename) {
+    auto cuda_pixels = readCudaBufferPixels(cuda_buffer, buffer_size);
+    if (cuda_pixels.empty()) return;
+    
+    uint32_t row_size = ((width * 3 + 3) / 4) * 4;
+    uint32_t image_size = row_size * height;
+    
+    BMPFileHeader file_header;
+    file_header.bfSize = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+    
+    BMPInfoHeader info_header;
+    info_header.biWidth = width;
+    info_header.biHeight = height;
+    info_header.biSizeImage = image_size;
+    
+    std::ofstream file(filename, std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+        file.write(reinterpret_cast<const char*>(&info_header), sizeof(info_header));
+        
+        std::vector<uint8_t> row_data(row_size, 0);
+        uint32_t channel_size = width * height;
+        
+        // BCHW布局转换为BMP（从下到上）
+        for (int y = height - 1; y >= 0; --y) {
+            for (uint32_t x = 0; x < width; ++x) {
+                uint32_t pixel_idx = y * width + x;
+                
+                // CUDA buffer索引（BCHW布局）
+                size_t cuda_r_idx = 0 * channel_size + pixel_idx;
+                size_t cuda_g_idx = 1 * channel_size + pixel_idx;
+                size_t cuda_b_idx = 2 * channel_size + pixel_idx;
+                
+                // 浮点值[0,1]转换为8位整数[0,255]，输出为BGR格式
+                uint8_t r = static_cast<uint8_t>(std::round(cuda_pixels[cuda_r_idx] * 255.0f));
+                uint8_t g = static_cast<uint8_t>(std::round(cuda_pixels[cuda_g_idx] * 255.0f));
+                uint8_t b = static_cast<uint8_t>(std::round(cuda_pixels[cuda_b_idx] * 255.0f));
+                
+                row_data[x * 3 + 0] = b; // B
+                row_data[x * 3 + 1] = g; // G
+                row_data[x * 3 + 2] = r; // R
+            }
+            file.write(reinterpret_cast<const char*>(row_data.data()), row_size);
+        }
+        file.close();
+    }
+}
+
+// 辅助函数：将CUDA buffer数据按RGBA交错布局保存为BMP文件（用于对比CLI工具的错误输出）
+void saveCudaBufferAsInterleavedToBMP(void* cuda_buffer, size_t buffer_size, uint32_t width, uint32_t height, const std::string& filename) {
+    auto cuda_pixels = readCudaBufferPixels(cuda_buffer, buffer_size);
+    if (cuda_pixels.empty()) return;
+    
+    uint32_t row_size = ((width * 3 + 3) / 4) * 4;
+    uint32_t image_size = row_size * height;
+    
+    BMPFileHeader file_header;
+    file_header.bfSize = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+    
+    BMPInfoHeader info_header;
+    info_header.biWidth = width;
+    info_header.biHeight = height;
+    info_header.biSizeImage = image_size;
+    
+    std::ofstream file(filename, std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+        file.write(reinterpret_cast<const char*>(&info_header), sizeof(info_header));
+        
+        std::vector<uint8_t> row_data(row_size, 0);
+        
+        // 按RGBA交错布局读取（错误的方式，但与CLI工具一致）
+        for (int y = height - 1; y >= 0; --y) {
+            for (uint32_t x = 0; x < width; ++x) {
+                int pixel_index = (y * width + x) * 4; // RGBA交错
+                float r = cuda_pixels[pixel_index + 0];
+                float g = cuda_pixels[pixel_index + 1];
+                float b = cuda_pixels[pixel_index + 2];
+                
+                // 浮点值[0,1]转换为8位整数[0,255]，输出为BGR格式
+                uint8_t r_byte = static_cast<uint8_t>(std::clamp(r * 255.0f, 0.0f, 255.0f));
+                uint8_t g_byte = static_cast<uint8_t>(std::clamp(g * 255.0f, 0.0f, 255.0f));
+                uint8_t b_byte = static_cast<uint8_t>(std::clamp(b * 255.0f, 0.0f, 255.0f));
+                
+                row_data[x * 3 + 0] = b_byte; // B
+                row_data[x * 3 + 1] = g_byte; // G
+                row_data[x * 3 + 2] = r_byte; // R
+            }
+            file.write(reinterpret_cast<const char*>(row_data.data()), row_size);
+        }
+        file.close();
+    }
+}
+
 // 辅助函数：从CUDA buffer读取像素数据到CPU
 std::vector<float> readCudaBufferPixels(void* cuda_buffer, size_t buffer_size) {
     if (cuda_buffer == nullptr || buffer_size == 0) {
@@ -308,8 +405,16 @@ TEST_CASE("FloatRgbVideoDecoder basic functionality", "[test_float_rgb_video_dec
         REQUIRE(context != nullptr);
         
         // 保存输入RGB纹理到BMP文件
-        // std::cout << "Saving input RGB texture to input_rgb_frame.bmp" << std::endl;
-        // saveRGBTextureToBMP(device, context.Get(), frame.rgb_frame.rgb_texture.Get(), "input_rgb_frame.bmp");
+        std::cout << "Saving input RGB texture to input_rgb_frame.bmp" << std::endl;
+        saveRGBTextureToBMP(device, context.Get(), frame.rgb_frame.rgb_texture.Get(), "input_rgb_frame.bmp");
+        
+        // 保存CUDA buffer数据到BMP文件（正确的BCHW布局）
+        std::cout << "Saving CUDA buffer (BCHW layout) to cuda_buffer_bchw.bmp" << std::endl;
+        saveCudaBufferToBMP(frame.cuda_buffer, frame.buffer_size, decoder.getWidth(), decoder.getHeight(), "cuda_buffer_bchw.bmp");
+        
+        // 保存CUDA buffer数据（按CLI工具的错误RGBA交错方式，用于对比）
+        std::cout << "Saving CUDA buffer (as CLI interleaved) to cuda_buffer_cli_style.bmp" << std::endl;
+        saveCudaBufferAsInterleavedToBMP(frame.cuda_buffer, frame.buffer_size, decoder.getWidth(), decoder.getHeight(), "cuda_buffer_cli_style.bmp");
         
         // 验证CUDA buffer
         REQUIRE(frame.cuda_buffer != nullptr);

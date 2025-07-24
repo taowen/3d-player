@@ -38,6 +38,7 @@ add_executable(integration-test
     src/audio_player.cpp
     src/audio_video_player.cpp
     src/stereo_video_decoder.cpp
+    src/d3d_stereo_video_decoder.cpp
     src/tensorrt_utils.cpp
     tests/test_mkv_stream_reader.cpp
     tests/test_hw_video_decoder.cpp
@@ -49,6 +50,7 @@ add_executable(integration-test
     tests/test_tensorrt.cpp
     tests/test_d3d11_cuda_interop.cpp
     tests/test_stereo_video_decoder.cpp
+    tests/test_d3d_stereo_video_decoder.cpp
     tests/test_float_rgb_video_decoder.cpp
 )
 

@@ -176,9 +176,10 @@ bool D3dStereoVideoDecoder::initializeD3DComputeShader() {
     // 创建输入 SRV（使用 raw buffer 格式）
     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
     srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-    srv_desc.Buffer.FirstElement = 0;
-    srv_desc.Buffer.NumElements = total_floats;
+    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+    srv_desc.BufferEx.FirstElement = 0;
+    srv_desc.BufferEx.NumElements = total_floats;
+    srv_desc.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
     
     hr = d3d_device->CreateShaderResourceView(input_buffer_.Get(), &srv_desc, &input_srv_);
     if (FAILED(hr)) {

@@ -7,7 +7,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 #include <cuda_runtime.h>
-#include "stereo_video_decoder.h"
+#include "d3d_stereo_video_decoder.h"
 
 // BMP文件头结构
 #pragma pack(push, 1)
@@ -222,8 +222,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // 初始化StereoVideoDecoder
-    StereoVideoDecoder decoder;
+    // 初始化D3dStereoVideoDecoder
+    D3dStereoVideoDecoder decoder;
     if (!decoder.open(video_file)) {
         std::cerr << "Failed to open video file: " << video_file << std::endl;
         return 1;
@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
               << "x" << decoder.getHeight() << std::endl;
     
     // 跳到第n帧
-    DecodedStereoFrame frame;
+    DecodedStereoFrameD3D frame;
     int current_frame = 0;
     
     while (current_frame <= target_frame && !decoder.isEOF()) {
@@ -246,21 +246,23 @@ int main(int argc, char* argv[]) {
             std::cout << "Processing frame " << target_frame << std::endl;
             
             // 保存输入帧（CUDA缓冲区）
-            if (frame.input_frame && frame.input_frame->cuda_buffer && frame.input_frame->buffer_size > 0) {
+            if (frame.stereo_frame.input_frame && frame.stereo_frame.input_frame->cuda_buffer && frame.stereo_frame.input_frame->buffer_size > 0) {
                 std::string input_filename = "frame_" + std::to_string(target_frame) + "_input.bmp";
                 int input_width = decoder.getWidth();
                 int input_height = decoder.getHeight();
-                saveCudaFloatBufferToBMP(frame.input_frame->cuda_buffer, input_width, 
+                saveCudaFloatBufferToBMP(frame.stereo_frame.input_frame->cuda_buffer, input_width, 
                                        input_height, input_filename);
             } else {
                 std::cerr << "Warning: No input CUDA buffer available for frame " << target_frame << std::endl;
             }
             
             // 保存输出帧（CUDA缓冲区）
-            if (frame.cuda_output_buffer && frame.output_width > 0 && frame.output_height > 0) {
+            if (frame.stereo_frame.cuda_output_buffer) {
                 std::string output_filename = "frame_" + std::to_string(target_frame) + "_output.bmp";
-                saveCudaFloatBufferToBMP(frame.cuda_output_buffer, frame.output_width, 
-                                       frame.output_height, output_filename);
+                int output_width = decoder.getWidth();
+                int output_height = decoder.getHeight();
+                saveCudaFloatBufferToBMP(frame.stereo_frame.cuda_output_buffer, output_width, 
+                                       output_height, output_filename);
             } else {
                 std::cerr << "Warning: No CUDA output buffer available for frame " << target_frame << std::endl;
             }

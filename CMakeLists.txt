@@ -157,6 +157,7 @@ add_executable(stereo_video_decoder_cli
     src/rgb_video_decoder.cpp
     src/float_rgb_video_decoder.cpp
     src/stereo_video_decoder.cpp
+    src/d3d_stereo_video_decoder.cpp
     src/tensorrt_utils.cpp
 )
 

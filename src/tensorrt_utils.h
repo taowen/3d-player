@@ -14,4 +14,6 @@ namespace TensorRTUtils {
     nvinfer1::IRuntime* createTensorRTRuntime(nvinfer1::ILogger& logger);
     
     nvinfer1::ICudaEngine* loadEngineFromCache(nvinfer1::IRuntime* runtime, const std::string& cache_path);
+    
+    nvinfer1::ICudaEngine* buildEngineFromONNX(nvinfer1::ILogger& logger, const std::string& onnx_path, const std::string& cache_path);
 }

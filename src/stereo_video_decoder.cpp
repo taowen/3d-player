@@ -200,9 +200,21 @@ bool StereoVideoDecoder::initializeTensorRT() {
     }
     
     std::string trt_cache_path = "../stereo_module_half_sbs_fp16.trt";
+    std::string onnx_path = "../stereo_module_half_sbs.onnx";
+    
+    // 尝试从缓存加载引擎
     tensorrt_engine_ = TensorRTUtils::loadEngineFromCache(static_cast<nvinfer1::IRuntime*>(tensorrt_runtime_), trt_cache_path);
+    
+    // 如果缓存不存在，从ONNX构建引擎
     if (!tensorrt_engine_) {
-        return false;
+        std::cout << "TensorRT cache not found: " << trt_cache_path << std::endl;
+        std::cout << "Building TensorRT engine from ONNX: " << onnx_path << std::endl;
+        
+        tensorrt_engine_ = TensorRTUtils::buildEngineFromONNX(*static_cast<TensorRTUtils::Logger*>(tensorrt_logger_), onnx_path, trt_cache_path);
+        if (!tensorrt_engine_) {
+            std::cerr << "Failed to build TensorRT engine from ONNX" << std::endl;
+            return false;
+        }
     }
     
     tensorrt_context_ = static_cast<nvinfer1::ICudaEngine*>(tensorrt_engine_)->createExecutionContext();

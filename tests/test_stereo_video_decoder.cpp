@@ -104,7 +104,13 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
         std::string test_video = "test_data/sample_hw.mkv";
         
         if (!decoder.open(test_video)) {
-            WARN("Test video not found: " + test_video + " - skipping frame reading tests");
+            // 检查视频文件是否存在
+            std::ifstream file_test(test_video);
+            if (!file_test.good()) {
+                WARN("Test video not found: " + test_video + " - skipping frame reading tests");
+            } else {
+                WARN("Failed to open stereo video decoder (likely TensorRT initialization failed) - skipping frame reading tests");
+            }
             return;
         }
         

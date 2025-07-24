@@ -11,8 +11,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # AddressSanitizer temporarily disabled for NPU testing
 # message(STATUS "AddressSanitizer enabled globally")
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fsanitize=address")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /fsanitize=address")
 
 # Include AddressSanitizer support
 include(cmake/AddressSanitizer.cmake)
@@ -139,3 +139,48 @@ copy_tensorrt_dlls(3d_player)
 
 # Setup AddressSanitizer for 3d_player
 setup_asan(3d_player)
+
+
+# 添加 stereo_video_decoder_cli 可执行文件
+add_executable(stereo_video_decoder_cli 
+    src/stereo_video_decoder_cli.cpp
+    src/mkv_stream_reader.cpp
+    src/hw_video_decoder.cpp
+    src/audio_decoder.cpp
+    src/rgb_video_decoder.cpp
+    src/float_rgb_video_decoder.cpp
+    src/stereo_video_decoder.cpp
+    src/tensorrt_utils.cpp
+)
+
+# 应用编译选项
+target_compile_options(stereo_video_decoder_cli PRIVATE
+    /W4 /WX- /permissive- /std:c++latest
+    /Zi                 # Generate debug info for better error reports
+    /utf-8              # Use UTF-8 encoding for source files
+)
+
+# 链接 DirectX 和 Windows 系统库
+target_link_libraries(stereo_video_decoder_cli PRIVATE
+    d3d11.lib
+    dxgi.lib
+    d3dcompiler.lib
+    ole32.lib
+    oleaut32.lib
+    user32.lib          # Win32 API
+    gdi32.lib           # GDI API
+    kernel32.lib        # Windows Kernel API
+    winmm.lib           # Windows Multimedia API
+)
+
+# 链接 FFmpeg
+target_link_ffmpeg(stereo_video_decoder_cli)
+copy_ffmpeg_dlls(stereo_video_decoder_cli)
+
+# 链接 TensorRT
+target_link_tensorrt(stereo_video_decoder_cli)
+target_link_libraries(stereo_video_decoder_cli PRIVATE CUDA::cudart)
+copy_tensorrt_dlls(stereo_video_decoder_cli)
+
+# Setup AddressSanitizer for stereo_video_decoder_cli
+setup_asan(stereo_video_decoder_cli)

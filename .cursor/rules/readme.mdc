@@ -57,6 +57,7 @@ src/
 ├── audio_video_player.cpp    # 音视频播放器实现
 ├── stereo_video_decoder.h    # 立体视频解码器头文件
 ├── stereo_video_decoder.cpp  # 立体视频解码器实现
+├── stereo_video_decoder_cli.cpp # 立体视频解码器命令行工具
 ├── tensorrt_utils.h          # TensorRT工具函数头文件
 ├── tensorrt_utils.cpp        # TensorRT工具函数实现
 tests/
@@ -78,6 +79,7 @@ cmake/
 ├── FindTensorRT.cmake        # TensorRT 库查找和配置
 └── AddressSanitizer.cmake    # AddressSanitizer 配置
 build.ps1                     # PowerShell构建脚本
+stereo_video_decoder_cli.ps1  # 立体视频解码器CLI构建运行脚本
 ```
 
 ## 核心组件
@@ -133,6 +135,17 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 详细实现请参考 `src/main.cpp`。
 
+### 立体视频解码器命令行工具
+基于 StereoVideoDecoder 组件构建的命令行工具，用于提取指定帧并保存为BMP图像文件。
+
+**核心功能**：
+- 支持解码任意视频文件的指定帧
+- 集成 TensorRT 立体视觉推理
+- 自动保存输入RGB帧和输出立体帧为BMP文件
+- 支持DirectX 11硬件加速和CUDA互操作
+
+详细实现请参考 `src/stereo_video_decoder_cli.cpp`。
+
 ## 核心决策
 
 ### 设计原则：单一实现方案
@@ -172,6 +185,11 @@ powershell -ExecutionPolicy Bypass -File test.ps1 "[test_mkv_stream_reader.cpp]"
 
 # 构建并运行所有测试 `build/Debug/integration-test.exe`
 powershell -ExecutionPolicy Bypass -File test-all.ps1
+
+# 构建并运行立体视频解码器CLI工具 `build/Debug/stereo_video_decoder_cli.exe`
+powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 5
+# 仅构建不运行
+powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -BuildOnly
 ```
 
 - **测试框架**：c++ catch2 测试框架
@@ -186,9 +204,27 @@ powershell -ExecutionPolicy Bypass -File test-all.ps1
 - **要求**：必须支持 DirectX 11 硬件解码
 - **音频**：自动检测音频流，支持 WASAPI 音频输出
 
+### 立体视频解码器CLI工具使用方法
+- **功能**：提取指定视频帧并通过TensorRT进行立体视觉处理
+- **输入**：视频文件路径和目标帧号
+- **输出**：生成 `frame_N_input.bmp`（输入RGB帧）和 `frame_N_output.bmp`（立体输出帧）
+- **要求**：必须支持 DirectX 11 硬件解码、CUDA、TensorRT
+
+**使用示例**：
+```bash
+# 提取第5帧并处理
+powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 5
+
+# 提取第10帧
+powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 10
+
+# 使用默认参数（test_data/sample_hw.mkv, 第5帧）
+powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1
+```
+
 ⚠️ **注意**：
 - Git Bash 环境下使用正斜杠路径：`test_data/sample_hw.mkv`
-- 可执行文件路径：`build/Debug/3d_player.exe`
+- 可执行文件路径：`build/Debug/3d_player.exe`、`build/Debug/stereo_video_decoder_cli.exe`
 
 ---
 

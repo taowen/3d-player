@@ -158,13 +158,15 @@ void saveD3D11FloatTextureToBMP(ID3D11Device* device, ID3D11DeviceContext* conte
         
         // BMP格式是从下到上存储的，所以需要翻转Y轴
         for (int y = height - 1; y >= 0; y--) {
-            // 检查行偏移是否在有效范围内
-            size_t row_offset = y * mapped.RowPitch;
-            if (row_offset + width * 4 * sizeof(float) > mapped.RowPitch * height) {
-                std::cerr << "Row offset out of bounds at y=" << y << std::endl;
+            // 检查单行数据大小是否超出RowPitch
+            size_t row_data_size = width * 4 * sizeof(float);
+            if (row_data_size > mapped.RowPitch) {
+                std::cerr << "Row data size (" << row_data_size << ") exceeds RowPitch (" << mapped.RowPitch << ")" << std::endl;
                 context->Unmap(staging_texture.Get(), 0);
                 return;
             }
+            
+            size_t row_offset = y * mapped.RowPitch;
             
             const float* src_row = reinterpret_cast<const float*>(
                 static_cast<const uint8_t*>(mapped.pData) + row_offset);
@@ -235,15 +237,15 @@ int main(int argc, char* argv[]) {
         if (current_frame == target_frame) {
             std::cout << "Processing frame " << target_frame << std::endl;
             
-            // 保存输入帧（D3D11纹理）
-            if (frame.input_frame && frame.input_frame->rgb_frame.rgb_texture) {
+            // 保存输入帧（CUDA缓冲区）
+            if (frame.input_frame && frame.input_frame->cuda_buffer && frame.input_frame->buffer_size > 0) {
                 std::string input_filename = "frame_" + std::to_string(target_frame) + "_input.bmp";
-                Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
-                decoder.getD3D11Device()->GetImmediateContext(&context);
-                saveD3D11FloatTextureToBMP(decoder.getD3D11Device(), context.Get(),
-                                         frame.input_frame->rgb_frame.rgb_texture.Get(), input_filename);
+                int input_width = decoder.getWidth();
+                int input_height = decoder.getHeight();
+                saveCudaFloatBufferToBMP(frame.input_frame->cuda_buffer, input_width, 
+                                       input_height, input_filename);
             } else {
-                std::cerr << "Warning: No input texture available for frame " << target_frame << std::endl;
+                std::cerr << "Warning: No input CUDA buffer available for frame " << target_frame << std::endl;
             }
             
             // 保存输出帧（CUDA缓冲区）

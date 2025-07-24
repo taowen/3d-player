@@ -23,11 +23,12 @@ struct DecodedStereoFrame {
     
     // TensorRT 立体视觉输出
     // 像素格式：32位浮点数 (float32)
-    // 颜色布局：单通道深度图 (1 channel depth map) 
-    // 数据范围：[0.0, 1.0] 归一化深度值，0.0=最近，1.0=最远
-    // 内存布局：行优先 (row-major)，连续存储
+    // 颜色布局：RGBA 4通道 half side-by-side 立体图像
+    // 数据范围：[0.0, 1.0] 归一化RGB像素值，A通道固定为1.0
+    // 内存布局：BCHW平面存储 (RRRRGGGGBBBBAAAA)
+    // 图像格式：左眼视图在左半部分，右眼视图在右半部分
     // 获取尺寸：通过 getWidth()/getHeight() 获取
-    // 缓冲区大小：getWidth() * getHeight() * sizeof(float)
+    // 缓冲区大小：getWidth() * getHeight() * 4 * sizeof(float)
     void* cuda_output_buffer = nullptr;  // CUDA 设备内存指针
 };
 

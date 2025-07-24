@@ -142,9 +142,9 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             
             // 计算PTS时间戳
             double pts_seconds = 0.0;
-            if (frame.frame && frame.frame->pts != AV_NOPTS_VALUE) {
+            if (frame.input_frame && frame.input_frame->rgb_frame.hw_frame.frame && frame.input_frame->rgb_frame.hw_frame.frame->pts != AV_NOPTS_VALUE) {
                 AVRational time_base = decoder.getVideoTimeBase();
-                pts_seconds = frame.frame->pts * av_q2d(time_base);
+                pts_seconds = frame.input_frame->rgb_frame.hw_frame.frame->pts * av_q2d(time_base);
             }
             REQUIRE(pts_seconds >= 0.0);
             
@@ -206,10 +206,7 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
                       << ", CUDA buffer size: " << frame.cuda_output_size << " bytes"
                       << ", Pixel validation: PASSED" << std::endl;
             
-            // 释放AVFrame内存
-            if (frame.frame) {
-                av_frame_free(&frame.frame);
-            }
+            // 注意：frame.input_frame 是内部成员的引用，不需要手动释放
             
             frame_count++;
         }

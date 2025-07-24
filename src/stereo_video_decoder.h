@@ -18,7 +18,6 @@ struct TensorDims {
 };
 
 struct DecodedStereoFrame {
-    AVFrame* frame = nullptr;  // 暴露完整frame，包含pts等所有信息
     FloatRgbVideoDecoder::DecodedFloatRgbFrame* input_frame = nullptr;  // 输入的RGB帧
     bool is_valid = false;
     

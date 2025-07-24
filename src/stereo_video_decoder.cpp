@@ -145,7 +145,6 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
         return false;
     }
     
-    frame.frame = current_input_frame_.rgb_frame.hw_frame.frame;
     frame.input_frame = &current_input_frame_;  // 提供输入帧的引用
     frame.is_valid = true;
     

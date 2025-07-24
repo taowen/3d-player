@@ -78,7 +78,7 @@ cmake/
 ├── FindFFmpeg.cmake          # FFmpeg 库查找和配置
 ├── FindTensorRT.cmake        # TensorRT 库查找和配置
 └── AddressSanitizer.cmake    # AddressSanitizer 配置
-build.ps1                     # PowerShell构建脚本
+3d-player.ps1                # 3D Player构建运行脚本
 stereo_video_decoder_cli.ps1  # 立体视频解码器CLI构建运行脚本
 ```
 
@@ -173,8 +173,10 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 ### 编译构建
 ```bash
-# 构建 3D Player 程序 `build/Debug/3d_player.exe`
-powershell -ExecutionPolicy Bypass -File build-3d-player.ps1
+# 构建并运行 3D Player（支持可选视频文件参数）
+powershell -ExecutionPolicy Bypass -File 3d-player.ps1 -VideoFile test_data/sample_hw.mkv
+# 仅构建不运行
+powershell -ExecutionPolicy Bypass -File 3d-player.ps1 -BuildOnly
 
 # 构建并运行单个测试 `build/Debug/integration-test.exe`
 powershell -ExecutionPolicy Bypass -File test.ps1 "[测试文件名.cpp]"

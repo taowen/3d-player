@@ -150,9 +150,7 @@ bool StereoVideoDecoder::readNextFrame(DecodedStereoFrame& frame) {
     
     // 填充 CUDA 原始输出信息
     frame.cuda_output_buffer = device_output_;
-    frame.cuda_output_size = device_output_size_;
-    frame.output_width = getWidth();
-    frame.output_height = getHeight();
+    // 冗余字段已清除，尺寸通过 getWidth()/getHeight() 获取
     
     return true;
 }

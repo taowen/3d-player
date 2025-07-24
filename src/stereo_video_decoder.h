@@ -21,11 +21,14 @@ struct DecodedStereoFrame {
     FloatRgbVideoDecoder::DecodedFloatRgbFrame* input_frame = nullptr;  // 输入的RGB帧
     bool is_valid = false;
     
-    // CUDA 原始输出
+    // TensorRT 立体视觉输出
+    // 像素格式：32位浮点数 (float32)
+    // 颜色布局：单通道深度图 (1 channel depth map) 
+    // 数据范围：[0.0, 1.0] 归一化深度值，0.0=最近，1.0=最远
+    // 内存布局：行优先 (row-major)，连续存储
+    // 获取尺寸：通过 getWidth()/getHeight() 获取
+    // 缓冲区大小：getWidth() * getHeight() * sizeof(float)
     void* cuda_output_buffer = nullptr;  // CUDA 设备内存指针
-    size_t cuda_output_size = 0;         // 缓冲区大小（字节）
-    int output_width = 0;                // 输出宽度
-    int output_height = 0;               // 输出高度
 };
 
 class StereoVideoDecoder {

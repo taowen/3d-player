@@ -136,9 +136,9 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             
             REQUIRE(frame.is_valid);
             REQUIRE(frame.cuda_output_buffer != nullptr);
-            REQUIRE(frame.cuda_output_size > 0);
-            REQUIRE(frame.output_width > 0);
-            REQUIRE(frame.output_height > 0);
+            REQUIRE(frame.cuda_output_buffer != nullptr);
+            REQUIRE(decoder.getWidth() > 0);
+            REQUIRE(decoder.getHeight() > 0);
             
             // 计算PTS时间戳
             double pts_seconds = 0.0;
@@ -149,15 +149,14 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             REQUIRE(pts_seconds >= 0.0);
             
             // 验证 CUDA 缓冲区尺寸
-            REQUIRE(frame.output_width == decoder.getWidth());
-            REQUIRE(frame.output_height == decoder.getHeight());
+            // 尺寸通过 getWidth()/getHeight() 获取，无需验证冗余字段
             
             // 验证缓冲区大小（4个浮点数 RGBA * 宽 * 高）
-            size_t expected_size = frame.output_width * frame.output_height * 4 * sizeof(float);
-            REQUIRE(frame.cuda_output_size == expected_size);
+            size_t expected_size = decoder.getWidth() * decoder.getHeight() * sizeof(float);
+            // 缓冲区大小通过公式计算，不存储冗余字段
             
             // 验证 CUDA 缓冲区像素数据
-            size_t total_pixels = frame.output_width * frame.output_height * 4; // RGBA
+            size_t total_pixels = decoder.getWidth() * decoder.getHeight(); // 单通道深度图
             std::vector<float> host_data(total_pixels);
             
             // 从GPU复制到CPU进行验证
@@ -168,22 +167,18 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             // 检查前几个像素值，确保不全为零且在合理范围内
             bool has_non_zero_pixel = false;
             bool has_valid_range_pixel = false;
-            const int sample_pixels = (std::min)(100, static_cast<int>(frame.output_width * frame.output_height));
+            const int sample_pixels = (std::min)(100, static_cast<int>(decoder.getWidth() * decoder.getHeight()));
             
             for (int i = 0; i < sample_pixels; i++) {
-                float r = host_data[i * 4 + 0];
-                float g = host_data[i * 4 + 1]; 
-                float b = host_data[i * 4 + 2];
-                float a = host_data[i * 4 + 3];
+                float depth = host_data[i];  // 单通道深度值
                 
                 // 检查是否有非零像素
-                if (r != 0.0f || g != 0.0f || b != 0.0f || a != 0.0f) {
+                if (depth != 0.0f) {
                     has_non_zero_pixel = true;
                 }
                 
                 // 检查像素值是否在合理范围内 (0.0 到 1.0)
-                if ((r >= 0.0f && r <= 1.0f) && (g >= 0.0f && g <= 1.0f) && 
-                    (b >= 0.0f && b <= 1.0f) && (a >= 0.0f && a <= 1.0f)) {
+                if (depth >= 0.0f && depth <= 1.0f) {
                     has_valid_range_pixel = true;
                 }
             }
@@ -194,16 +189,16 @@ TEST_CASE("Stereo Video Decoder Frame Reading", "[stereo_video_decoder][frames][
             // 保存前3帧 CUDA 输出为BMP文件用于肉眼比对
             if (frame_count < 3) {
                 std::string cuda_output_filename = "cuda_stereo_output_frame_" + std::to_string(frame_count) + ".bmp";
-                saveCudaFloatBufferToBMP(frame.cuda_output_buffer, frame.output_width, frame.output_height, 
+                saveCudaFloatBufferToBMP(frame.cuda_output_buffer, decoder.getWidth(), decoder.getHeight(), 
                                        cuda_output_filename);
                 std::cout << "Saved CUDA stereo output frame: " << cuda_output_filename << std::endl;
             }
             
             std::cout << "Frame " << frame_count 
-                      << ": " << frame.output_width << "x" << frame.output_height
+                      << ": " << decoder.getWidth() << "x" << decoder.getHeight()
                       << ", PTS: " << pts_seconds << "s"
                       << ", Processing time: " << duration.count() << "ms"
-                      << ", CUDA buffer size: " << frame.cuda_output_size << " bytes"
+                      << ", CUDA buffer size: " << expected_size << " bytes"
                       << ", Pixel validation: PASSED" << std::endl;
             
             // 注意：frame.input_frame 是内部成员的引用，不需要手动释放

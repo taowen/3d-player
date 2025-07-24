@@ -69,12 +69,20 @@ void saveCudaFloatBufferToBMP(void* cuda_buffer, int width, int height, const st
         std::vector<uint8_t> row_data(row_size, 0);
         
         // BMP格式是从下到上存储的，所以需要翻转Y轴
+        uint32_t channel_size = width * height;
+        
         for (int y = height - 1; y >= 0; y--) {
             for (int x = 0; x < width; x++) {
-                int pixel_index = (y * width + x) * 4; // RGBA
-                float r = host_data[pixel_index + 0];
-                float g = host_data[pixel_index + 1];
-                float b = host_data[pixel_index + 2];
+                uint32_t pixel_idx = y * width + x;
+                
+                // CUDA buffer索引（BCHW布局）
+                size_t cuda_r_idx = 0 * channel_size + pixel_idx;
+                size_t cuda_g_idx = 1 * channel_size + pixel_idx;
+                size_t cuda_b_idx = 2 * channel_size + pixel_idx;
+                
+                float r = host_data[cuda_r_idx];
+                float g = host_data[cuda_g_idx];
+                float b = host_data[cuda_b_idx];
                 
                 // 将浮点数转换为0-255范围的整数
                 uint8_t r_byte = static_cast<uint8_t>(std::clamp(r * 255.0f, 0.0f, 255.0f));

@@ -141,12 +141,12 @@ bool AudioVideoPlayer::isEOF() const {
 }
 
 
-StereoVideoDecoder* AudioVideoPlayer::getStereoDecoder() const {
+RgbVideoDecoder* AudioVideoPlayer::getRgbDecoder() const {
     if (!video_player_) {
         return nullptr;
     }
     
-    return video_player_->getStereoDecoder();
+    return video_player_->getRgbDecoder();
 }
 
 

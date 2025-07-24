@@ -104,10 +104,10 @@ public:
     bool isEOF() const;
     
     /**
-     * @brief 获取内部的立体视频解码器实例
-     * @return StereoVideoDecoder* 立体解码器指针，可能为 nullptr
+     * @brief 获取内部的 RGB 视频解码器实例
+     * @return RgbVideoDecoder* RGB 解码器指针，可能为 nullptr
      */
-    StereoVideoDecoder* getStereoDecoder() const;
+    RgbVideoDecoder* getRgbDecoder() const;
     
     /**
      * @brief 获取内部的音频解码器实例

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stereo_video_decoder.h"
+#include "rgb_video_decoder.h"
 #include "mkv_stream_reader.h"
 #include <memory>
 #include <string>
@@ -28,7 +28,7 @@ enum class RenderTargetType {
  * @brief 视频播放器，支持时间驱动的播放控制和预解码缓冲
  * 
  * 特性：
- * - 基于 StereoVideoDecoder 提供立体视觉纹理输出
+ * - 基于 RgbVideoDecoder 提供 RGB 纹理输出
  * - 支持时间驱动的播放控制 (onTimer)
  * - 预解码缓冲机制，提前储备下一帧
  * - 顺序播放，不支持跳转
@@ -103,10 +103,10 @@ public:
     bool isEOF() const;
     
     /**
-     * @brief 获取内部的立体解码器实例
-     * @return StereoVideoDecoder* 立体解码器指针，可能为 nullptr
+     * @brief 获取内部的 RGB 解码器实例
+     * @return RgbVideoDecoder* RGB 解码器指针，可能为 nullptr
      */
-    StereoVideoDecoder* getStereoDecoder() const;
+    RgbVideoDecoder* getRgbDecoder() const;
     
     /**
      * @brief 获取 D3D11 设备
@@ -135,14 +135,14 @@ public:
     int getHeight() const;
 
 private:
-    std::unique_ptr<StereoVideoDecoder> stereo_decoder_;
+    std::unique_ptr<RgbVideoDecoder> rgb_decoder_;
     
     // 帧缓冲管理
-    std::queue<DecodedStereoFrame> frame_buffer_;
+    std::queue<RgbVideoDecoder::DecodedRgbFrame> frame_buffer_;
     ComPtr<ID3D11Texture2D> current_frame_texture_;
     double current_frame_time_ = 0.0;
     
-    // StereoVideoDecoder 不暴露流信息
+    // RgbVideoDecoder 不暴露流信息
     
     // 渲染目标管理
     RenderTargetType render_target_type_;

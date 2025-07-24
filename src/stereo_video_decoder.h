@@ -18,10 +18,15 @@ struct TensorDims {
 };
 
 struct DecodedStereoFrame {
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> stereo_texture;
     AVFrame* frame = nullptr;  // 暴露完整frame，包含pts等所有信息
     FloatRgbVideoDecoder::DecodedFloatRgbFrame* input_frame = nullptr;  // 输入的RGB帧
     bool is_valid = false;
+    
+    // CUDA 原始输出
+    void* cuda_output_buffer = nullptr;  // CUDA 设备内存指针
+    size_t cuda_output_size = 0;         // 缓冲区大小（字节）
+    int output_width = 0;                // 输出宽度
+    int output_height = 0;               // 输出高度
 };
 
 class StereoVideoDecoder {
@@ -43,7 +48,6 @@ public:
     
 private:
     std::unique_ptr<FloatRgbVideoDecoder> float_rgb_decoder_;
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> stereo_texture_;
     FloatRgbVideoDecoder::DecodedFloatRgbFrame current_input_frame_;  // 存储当前输入帧
     bool is_open_;
     
@@ -58,20 +62,14 @@ private:
     size_t device_input_size_ = 0;
     size_t device_output_size_ = 0;
     
-    void* input_resource_ = nullptr;
-    void* output_resource_ = nullptr;
-    ID3D11Texture2D* registered_input_texture_ = nullptr;
-    ID3D11Texture2D* registered_output_texture_ = nullptr;
     
     bool tensorrt_initialized_ = false;
     
     bool initializeTensorRT();
-    bool convertToStereo(void* input_cuda_ptr, ID3D11Texture2D* output_stereo);
+    bool convertToStereo(void* input_cuda_ptr);
     void cleanupTensorRT();
     
     // 拆分后的辅助函数
     bool prepareInferenceInput(void* input_cuda_ptr, const TensorDims& runtime_dims);
     bool executeInference();
-    bool copyInferenceOutput(ID3D11Texture2D* output_stereo, const D3D11_TEXTURE2D_DESC& input_desc);
-    bool registerCudaResources(ID3D11Texture2D* input_rgb, ID3D11Texture2D* output_stereo);
 };

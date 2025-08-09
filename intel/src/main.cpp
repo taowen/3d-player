@@ -316,10 +316,18 @@ int main(int argc, char* argv[]) {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
     
+    // 初始化 COM 库用于 WASAPI 音频播放
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(hr)) {
+        std::cerr << "错误：COM 库初始化失败: " << std::hex << hr << std::endl;
+        return 1;
+    }
+    
     // 检查命令行参数
     if (argc < 2) {
         std::cerr << "错误：缺少视频文件路径参数" << std::endl;
         showUsage();
+        CoUninitialize();
         return 1;
     }
     
@@ -330,12 +338,14 @@ int main(int argc, char* argv[]) {
     HINSTANCE hInstance = GetModuleHandle(NULL);
     if (!hInstance) {
         std::cerr << "错误：无法获取应用程序实例句柄" << std::endl;
+        CoUninitialize();
         return 1;
     }
     
     // 注册窗口类
     if (!registerWindowClass(hInstance)) {
         std::cerr << "错误：注册窗口类失败" << std::endl;
+        CoUninitialize();
         return 1;
     }
     
@@ -343,6 +353,7 @@ int main(int argc, char* argv[]) {
     HWND hwnd = createWindow(hInstance, videoFilePath);
     if (!hwnd) {
         std::cerr << "错误：创建窗口失败" << std::endl;
+        CoUninitialize();
         return 1;
     }
     
@@ -355,6 +366,7 @@ int main(int argc, char* argv[]) {
     // 第一步：初始化 AudioVideoPlayer（获取 D3D11 设备）
     if (!initializeAudioVideoPlayer(videoFilePath)) {
         std::cerr << "错误：AudioVideoPlayer 初始化失败" << std::endl;
+        CoUninitialize();
         return 1;
     }
     
@@ -362,6 +374,7 @@ int main(int argc, char* argv[]) {
     if (!createSwapChain(hwnd)) {
         std::cerr << "错误：创建交换链失败" << std::endl;
         cleanupD3D11();
+        CoUninitialize();
         return 1;
     }
     
@@ -369,6 +382,7 @@ int main(int argc, char* argv[]) {
     if (!finalizeAudioVideoPlayer()) {
         std::cerr << "错误：AudioVideoPlayer 完整初始化失败" << std::endl;
         cleanupD3D11();
+        CoUninitialize();
         return 1;
     }
     
@@ -410,5 +424,6 @@ int main(int argc, char* argv[]) {
     
     std::cout << "程序退出" << std::endl;
     cleanupD3D11();
+    CoUninitialize();
     return 0;
 } 

@@ -1,6 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../src/rgb_video_decoder.h"
-#include <fstream>
-const std::string TEST_FILE="test_data/sample_hw.mkv";
-TEST_CASE("RgbVideoDecoder first frame (intel)", "[test_rgb_video_decoder.cpp]"){
- std::ifstream f(TEST_FILE); if(!f.good()) SKIP("missing sample"); RgbVideoDecoder dec; REQUIRE(dec.open(TEST_FILE)); RgbVideoDecoder::DecodedRgbFrame fr; REQUIRE(dec.readNextFrame(fr)); if(fr.is_valid && fr.hw_frame.frame) av_frame_free(&fr.hw_frame.frame); }
+#include "test_utils.h"
+
+TEST_CASE("RgbVideoDecoder first frame (intel)") {
+	auto path = resolveTestMedia("sample_hw.mkv");
+	REQUIRE(!path.empty());
+	RgbVideoDecoder dec;
+	REQUIRE(dec.open(path));
+	RgbVideoDecoder::DecodedRgbFrame fr{{nullptr,false},nullptr,false};
+	REQUIRE(dec.readNextFrame(fr));
+	REQUIRE(fr.is_valid);
+	REQUIRE(fr.rgb_texture != nullptr);
+	if (fr.hw_frame.frame) av_frame_free(&fr.hw_frame.frame);
+}

@@ -55,11 +55,7 @@ src/
 ├── video_player.cpp          # 视频播放器实现
 ├── audio_video_player.h      # 音视频播放器头文件
 ├── audio_video_player.cpp    # 音视频播放器实现
-├── stereo_video_decoder.h    # 立体视频解码器头文件
-├── stereo_video_decoder.cpp  # 立体视频解码器实现
-├── stereo_video_decoder_cli.cpp # 立体视频解码器命令行工具
-├── tensorrt_utils.h          # TensorRT工具函数头文件
-├── tensorrt_utils.cpp        # TensorRT工具函数实现
+└── fullscreen_quad.hlsl      # 全屏四边形着色器
 tests/
 ├── test_mkv_stream_reader.cpp # MKV流读取器测试
 ├── test_hw_video_decoder.cpp  # 硬件视频解码器测试
@@ -67,19 +63,14 @@ tests/
 ├── test_rgb_video_decoder.cpp # RGB视频解码器测试
 ├── test_audio_player.cpp     # 音频播放器测试
 ├── test_video_player.cpp     # 视频播放器测试
-├── test_audio_video_player.cpp # 音视频播放器测试
-├── test_tensorrt.cpp         # TensorRT 集成测试
-├── test_d3d11_cuda_interop.cpp # D3D11-CUDA互操作测试
-├── test_stereo_video_decoder.cpp # 立体视频解码器测试
+└── test_audio_video_player.cpp # 音视频播放器测试
 test_data/
 ├── sample_hw.mkv             # 测试文件 - H.264编码，支持硬件解码
 └── sample_with_audio.mkv     # 测试文件 - H.264编码，支持硬件解码，包含AAC音频
-cmake/
-├── FindFFmpeg.cmake          # FFmpeg 库查找和配置
-├── FindTensorRT.cmake        # TensorRT 库查找和配置
-└── AddressSanitizer.cmake    # AddressSanitizer 配置
-3d-player.ps1                # 3D Player构建运行脚本
-stereo_video_decoder_cli.ps1  # 立体视频解码器CLI构建运行脚本
+CMakeLists.txt               # CMake构建配置文件
+3d-player.ps1               # 3D Player构建运行脚本
+test.ps1                    # 单个测试运行脚本
+test-all.ps1               # 所有测试运行脚本
 ```
 
 ## 核心组件
@@ -108,13 +99,6 @@ RGB 视频解码器，基于 HwVideoDecoder 并提供 RGB 转换功能。内部�
 音视频播放器，组合 AudioPlayer 和 VideoPlayer 功能。提供统一的接口管理音频和视频播放，支持时间驱动的音视频同步播放。
 详细接口请参考 `src/audio_video_player.h`。
 
-### StereoVideoDecoder
-立体视频解码器，基于 RgbVideoDecoder 并集成 TensorRT 推理功能。将普通RGB视频帧转换为立体视觉输出，支持GPU加速的深度学习推理。
-详细接口请参考 `src/stereo_video_decoder.h`。
-
-### TensorRTUtils
-TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创建、引擎缓存加载等功能。支持Logger日志记录和错误处理。
-详细接口请参考 `src/tensorrt_utils.h`。
 
 ### 3D Player 应用程序
 基于 AudioVideoPlayer 组件构建的完整音视频播放应用程序，提供 Windows 窗口播放体验。
@@ -135,16 +119,6 @@ TensorRT 工具函数库，提供 CUDA 设备初始化、TensorRT 运行时创�
 
 详细实现请参考 `src/main.cpp`。
 
-### 立体视频解码器命令行工具
-基于 StereoVideoDecoder 组件构建的命令行工具，用于提取指定帧并保存为BMP图像文件。
-
-**核心功能**：
-- 支持解码任意视频文件的指定帧
-- 集成 TensorRT 立体视觉推理
-- 自动保存输入RGB帧和输出立体帧为BMP文件
-- 支持DirectX 11硬件加速和CUDA互操作
-
-详细实现请参考 `src/stereo_video_decoder_cli.cpp`。
 
 ## 核心决策
 
@@ -188,10 +162,6 @@ powershell -ExecutionPolicy Bypass -File test.ps1 "[test_mkv_stream_reader.cpp]"
 # 构建并运行所有测试 `build/Debug/integration-test.exe`
 powershell -ExecutionPolicy Bypass -File test-all.ps1
 
-# 构建并运行立体视频解码器CLI工具 `build/Debug/stereo_video_decoder_cli.exe`
-powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 5
-# 仅构建不运行
-powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -BuildOnly
 ```
 
 - **测试框架**：c++ catch2 测试框架
@@ -206,27 +176,9 @@ powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -BuildOnly
 - **要求**：必须支持 DirectX 11 硬件解码
 - **音频**：自动检测音频流，支持 WASAPI 音频输出
 
-### 立体视频解码器CLI工具使用方法
-- **功能**：提取指定视频帧并通过TensorRT进行立体视觉处理
-- **输入**：视频文件路径和目标帧号
-- **输出**：生成 `frame_N_input.bmp`（输入RGB帧）和 `frame_N_output.bmp`（立体输出帧）
-- **要求**：必须支持 DirectX 11 硬件解码、CUDA、TensorRT
-
-**使用示例**：
-```bash
-# 提取第5帧并处理
-powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 5
-
-# 提取第10帧
-powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1 -VideoFile test_data/sample_hw.mkv -FrameNumber 10
-
-# 使用默认参数（test_data/sample_hw.mkv, 第5帧）
-powershell -ExecutionPolicy Bypass -File stereo_video_decoder_cli.ps1
-```
-
 ⚠️ **注意**：
 - Git Bash 环境下使用正斜杠路径：`test_data/sample_hw.mkv`
-- 可执行文件路径：`build/Debug/3d_player.exe`、`build/Debug/stereo_video_decoder_cli.exe`
+- 可执行文件路径：`build/Debug/3d_player.exe`
 
 ---
 

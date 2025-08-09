@@ -441,20 +441,20 @@ bool AudioPlayer::convertFloatToPcm(AVFrame* frame, BYTE* buffer, UINT32 frames_
         return false;
     }
     
-    // 转换为 16-bit PCM 立体声
-    int16_t* output = (int16_t*)buffer;
+    // 转换为 float32 立体声 (WASAPI mix format)
+    float* output = (float*)buffer;
     const float* left_channel = (const float*)frame->data[0];
     const float* right_channel = (frame->ch_layout.nb_channels > 1) ? (const float*)frame->data[1] : left_channel;
     
     UINT32 samples_to_convert = (std::min)(frames_to_write, (UINT32)frame->nb_samples);
     
     for (UINT32 i = 0; i < samples_to_convert; i++) {
-        // 转换 float [-1.0, 1.0] 到 int16 [-32768, 32767]
+        // 直接复制 float [-1.0, 1.0] 数据
         float left_sample = (std::max)(-1.0f, (std::min)(1.0f, left_channel[i]));
         float right_sample = (std::max)(-1.0f, (std::min)(1.0f, right_channel[i]));
         
-        output[i * 2] = (int16_t)(left_sample * 32767.0f);
-        output[i * 2 + 1] = (int16_t)(right_sample * 32767.0f);
+        output[i * 2] = left_sample;
+        output[i * 2 + 1] = right_sample;
     }
     
     return true;

@@ -74,3 +74,19 @@ target_link_ffmpeg(3d_player_intel)
 copy_ffmpeg_dlls(3d_player_intel)
 
 setup_asan(3d_player_intel)
+
+add_executable(audio_only_player
+    src/audio_only_player.cpp
+    src/mkv_stream_reader.cpp
+    src/audio_decoder.cpp
+    src/audio_player.cpp
+)
+
+target_compile_options(audio_only_player PRIVATE /W4 /WX- /permissive- /std:c++latest /Zi /utf-8)
+
+target_link_libraries(audio_only_player PRIVATE ole32.lib oleaut32.lib user32.lib winmm.lib)
+
+target_link_ffmpeg(audio_only_player)
+copy_ffmpeg_dlls(audio_only_player)
+
+setup_asan(audio_only_player)

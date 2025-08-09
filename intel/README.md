@@ -55,6 +55,7 @@ src/
 ├── video_player.cpp          # 视频播放器实现
 ├── audio_video_player.h      # 音视频播放器头文件
 ├── audio_video_player.cpp    # 音视频播放器实现
+├── audio_only_player.cpp     # 纯音频播放器程序入口
 └── fullscreen_quad.hlsl      # 全屏四边形着色器
 tests/
 ├── test_mkv_stream_reader.cpp # MKV流读取器测试
@@ -69,6 +70,7 @@ test_data/
 └── sample_with_audio.mkv     # 测试文件 - H.264编码，支持硬件解码，包含AAC音频
 CMakeLists.txt               # CMake构建配置文件
 3d-player.ps1               # 3D Player构建运行脚本
+audio-only.ps1              # 纯音频播放器构建运行脚本
 test.ps1                    # 单个测试运行脚本
 test-all.ps1               # 所有测试运行脚本
 ```

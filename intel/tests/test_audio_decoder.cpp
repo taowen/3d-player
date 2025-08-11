@@ -1,10 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../src/audio_decoder.h"
-#include "test_utils.h"
 
 TEST_CASE("AudioDecoder open and read (intel)") {
-	auto path = resolveTestMedia("sample_with_audio.mkv");
-	REQUIRE(!path.empty());
+	auto path = "test_data/sample_with_audio.mkv";
 	AudioDecoder dec;
 	REQUIRE(dec.open(path));
 	auto *sr = dec.getStreamReader();

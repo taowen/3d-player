@@ -1,10 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../src/mkv_stream_reader.h"
-#include "test_utils.h"
 
 TEST_CASE("MKVStreamReader basic (intel)") {
-	auto path = resolveTestMedia("sample_hw.mkv");
-	REQUIRE(!path.empty());
+	auto path = "test_data/sample_hw.mkv";
 	MKVStreamReader r;
 	REQUIRE(r.open(path));
 	auto info = r.getStreamInfo();

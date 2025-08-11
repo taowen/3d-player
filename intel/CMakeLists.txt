@@ -38,6 +38,7 @@ add_executable(integration-test-intel
     tests/test_video_player.cpp
     tests/test_audio_player.cpp
     tests/test_audio_video_player.cpp
+    tests/test_ring_buffer_issues.cpp
 )
 
 target_link_libraries(integration-test-intel PRIVATE Catch2::Catch2WithMain)

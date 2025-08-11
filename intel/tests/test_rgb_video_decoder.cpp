@@ -1,10 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../src/rgb_video_decoder.h"
-#include "test_utils.h"
 
 TEST_CASE("RgbVideoDecoder first frame (intel)") {
-	auto path = resolveTestMedia("sample_hw.mkv");
-	REQUIRE(!path.empty());
+	auto path = "test_data/sample_hw.mkv";
 	RgbVideoDecoder dec;
 	REQUIRE(dec.open(path));
 	RgbVideoDecoder::DecodedRgbFrame fr{{nullptr,false},nullptr,false};

@@ -2,9 +2,10 @@
 
 #include "audio_decoder.h"
 #include "mkv_stream_reader.h"
+#include "ring_buffer.h"
+#include "audio_format_converter.h"
 #include <memory>
 #include <string>
-#include <queue>
 #include <mutex>
 #include <atomic>
 #include <windows.h>
@@ -93,12 +94,14 @@ public:
      * @return true 成功获取状态，false 获取失败
      */
     bool getAudioBufferStatus(UINT32& total_frames, UINT32& padding_frames, UINT32& available_frames) const;
+    
 
 private:
     std::unique_ptr<AudioDecoder> audio_decoder_;
     
     // 音频缓冲管理
-    std::queue<AudioDecoder::DecodedFrame> audio_buffer_;
+    std::unique_ptr<RingBuffer> ring_buffer_;
+    std::unique_ptr<AudioFormatConverter> format_converter_;
     mutable std::mutex audio_mutex_;
     
     // 流信息
@@ -119,15 +122,19 @@ private:
     
     /**
      * @brief 处理音频帧
-     * @param current_time 当前时间
      */
-    void handleAudioFrames(double current_time);
+    void handleAudioFrames();
     
     
     /**
-     * @brief 预加载音频帧
+     * @brief 填充环形缓冲区
      */
-    void preloadAudioFrames();
+    void fillRingBuffer();
+    
+    /**
+     * @brief 从环形缓冲区写入到WASAPI
+     */
+    void writeToWASAPI();
     
     
     /**
@@ -203,4 +210,10 @@ private:
      * @return true 成功转换，false 转换失败
      */
     bool convertFloatToPcm(AVFrame* frame, BYTE* buffer, UINT32 frames_to_write);
+    
+    /**
+     * @brief 填充静音以防止 underrun
+     * @param frame_count 要填充的帧数
+     */
+    void fillSilence(UINT32 frame_count);
 }; 

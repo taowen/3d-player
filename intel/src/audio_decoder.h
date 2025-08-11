@@ -67,6 +67,12 @@ public:
      */
     MKVStreamReader* getStreamReader() const;
     
+    /**
+     * @brief 获取内部的解码器上下文
+     * @return AVCodecContext* 解码器上下文指针，可能为 nullptr
+     */
+    AVCodecContext* getAVCodecContext() const;
+    
 private:
     std::unique_ptr<MKVStreamReader> stream_reader_;
     AVCodecContext* codec_context_;

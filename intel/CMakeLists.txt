@@ -31,6 +31,8 @@ add_executable(integration-test-intel
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp
+    src/ring_buffer.cpp
+    src/audio_format_converter.cpp
     tests/test_mkv_stream_reader.cpp
     tests/test_hw_video_decoder.cpp
     tests/test_audio_decoder.cpp
@@ -38,12 +40,15 @@ add_executable(integration-test-intel
     tests/test_video_player.cpp
     tests/test_audio_player.cpp
     tests/test_audio_video_player.cpp
-    tests/test_ring_buffer_issues.cpp
+    tests/test_ring_buffer.cpp
 )
 
 target_link_libraries(integration-test-intel PRIVATE Catch2::Catch2WithMain)
 
 target_compile_options(integration-test-intel PRIVATE /W4 /WX- /permissive- /std:c++latest /Zi /utf-8)
+
+# Disable debug assertions to prevent dialog boxes in automated tests
+target_compile_definitions(integration-test-intel PRIVATE NDEBUG _NDEBUG)
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT integration-test-intel)
 
@@ -65,6 +70,8 @@ add_executable(3d_player_intel
     src/video_player.cpp
     src/audio_player.cpp
     src/audio_video_player.cpp
+    src/ring_buffer.cpp
+    src/audio_format_converter.cpp
 )
 
 target_compile_options(3d_player_intel PRIVATE /W4 /WX- /permissive- /std:c++latest /Zi /utf-8)
@@ -81,6 +88,8 @@ add_executable(audio_only_player
     src/mkv_stream_reader.cpp
     src/audio_decoder.cpp
     src/audio_player.cpp
+    src/ring_buffer.cpp
+    src/audio_format_converter.cpp
 )
 
 target_compile_options(audio_only_player PRIVATE /W4 /WX- /permissive- /std:c++latest /Zi /utf-8)

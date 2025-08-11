@@ -172,4 +172,9 @@ void AudioDecoder::cleanup() {
         avcodec_free_context(&codec_context_);
         codec_context_ = nullptr;
     }
+}
+
+
+AVCodecContext* AudioDecoder::getAVCodecContext() const {
+    return codec_context_;
 } 

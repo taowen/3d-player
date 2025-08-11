@@ -2,6 +2,8 @@
 #include <iostream>
 #include <comdef.h>
 #include <algorithm>
+#include <vector>
+#include <cstring>
 
 extern "C" {
 #include <libavutil/rational.h>
@@ -37,6 +39,8 @@ static ComInitializer g_com_initializer;
 
 AudioPlayer::AudioPlayer() 
     : audio_decoder_(std::make_unique<AudioDecoder>())
+    , ring_buffer_(nullptr)
+    , format_converter_(std::make_unique<AudioFormatConverter>())
     , buffer_frame_count_(0)
     , sample_rate_(0)
     , audio_channels_(0)
@@ -87,10 +91,26 @@ bool AudioPlayer::initialize() {
         return false;
     }
     
+    // 配置格式转换器
+    AVCodecContext* codec_ctx = audio_decoder_->getAVCodecContext();
+    if (!codec_ctx) {
+        std::cerr << "Failed to get codec context" << std::endl;
+        return false;
+    }
+    
+    if (!format_converter_->configure(codec_ctx->sample_rate, codec_ctx->sample_fmt, codec_ctx->ch_layout.nb_channels)) {
+        std::cerr << "Failed to configure format converter" << std::endl;
+        return false;
+    }
+    
+    // 创建环形缓冲区（500ms缓冲）
+    const size_t buffer_duration_samples = format_converter_->output_sample_rate() / 2; // 500ms
+    ring_buffer_ = std::make_unique<RingBuffer>(buffer_duration_samples, format_converter_->output_channels());
+    
     // 初始化 WASAPI 音频播放器
-    UINT32 sample_rate = stream_info_.audio_sample_rate;
-    UINT16 channels = static_cast<UINT16>(stream_info_.audio_channels);
-    UINT16 bits_per_sample = 16;  // 默认16位
+    UINT32 sample_rate = format_converter_->output_sample_rate();
+    UINT16 channels = static_cast<UINT16>(format_converter_->output_channels());
+    UINT16 bits_per_sample = 32;  // float32 = 32位
     
     if (!initializeWASAPIAudioPlayer(sample_rate, channels, bits_per_sample)) {
         std::cerr << "Failed to initialize WASAPI audio player" << std::endl;
@@ -108,23 +128,28 @@ bool AudioPlayer::initialize() {
 
 
 void AudioPlayer::onTimer(double current_time) {
+    (void)current_time; // 暂未使用，但保留接口一致性
+    
     if (!isReady()) {
         return;
     }
     
-    handleAudioFrames(current_time);
+    handleAudioFrames();
 }
 
 
 void AudioPlayer::close() {
     std::lock_guard<std::mutex> audio_lock(audio_mutex_);
     
-    // 清空音频缓冲
-    while (!audio_buffer_.empty()) {
-        auto& frame = audio_buffer_.front();
-        av_frame_free(&frame.frame);
-        audio_buffer_.pop();
+    // 清空环形缓冲区
+    if (ring_buffer_) {
+        ring_buffer_->clear();
+        ring_buffer_.reset();
     }
+    
+    // 重置格式转换器
+    format_converter_.reset();
+    format_converter_ = std::make_unique<AudioFormatConverter>();
     
     // 关闭音频播放器
     closeAudioPlayer();
@@ -177,58 +202,103 @@ bool AudioPlayer::getAudioBufferStatus(UINT32& total_frames, UINT32& padding_fra
 }
 
 
-void AudioPlayer::handleAudioFrames(double current_time) {
-    if (!is_audio_initialized_) {
+void AudioPlayer::handleAudioFrames() {
+    if (!is_audio_initialized_ || !ring_buffer_ || !format_converter_) {
         return;
     }
     
     std::lock_guard<std::mutex> audio_lock(audio_mutex_);
     
-    // 预加载音频帧
-    preloadAudioFrames();
+    // 解码并写入环形缓冲区
+    fillRingBuffer();
     
-    // 处理音频帧队列
-    while (!audio_buffer_.empty()) {
-        auto& frame = audio_buffer_.front();
-        double frame_time = convertAudioPtsToSeconds(frame.frame);
-        
-        // 检查音频帧是否到时间（提前100ms推送）
-        if (frame_time <= current_time + 0.1) {
-            // 尝试写入音频数据
-            bool written = writeAudioData(frame.frame);
-            
-            if (written) {
-                // 成功写入，释放帧并移除
-                av_frame_free(&frame.frame);
-                audio_buffer_.pop();
-            } else {
-                // 写入失败（缓冲区满），下次再试
-                break;
-            }
-        } else {
-            // 时间还没到
+    // 从环形缓冲区写入到WASAPI
+    writeToWASAPI();
+}
+
+
+void AudioPlayer::fillRingBuffer() {
+    if (!audio_decoder_ || !ring_buffer_ || !format_converter_) {
+        return;
+    }
+    
+    // 保持环形缓冲区有足够的数据（至少300ms）
+    const size_t min_samples = format_converter_->output_sample_rate() * 300 / 1000; // 300ms
+    
+    while (ring_buffer_->available_for_read() < min_samples && !audio_decoder_->isEOF()) {
+        AudioDecoder::DecodedFrame frame;
+        if (!audio_decoder_->readNextFrame(frame)) {
             break;
         }
+        
+        // 格式转换
+        float* converted_samples = nullptr;
+        int converted_sample_count = 0;
+        
+        int ret = format_converter_->convert(frame.frame, &converted_samples, &converted_sample_count);
+        
+        if (ret == 0 && converted_samples && converted_sample_count > 0) {
+            // 写入环形缓冲区
+            size_t samples_written = ring_buffer_->write(converted_samples, converted_sample_count);
+            
+            if (samples_written < static_cast<size_t>(converted_sample_count)) {
+                // 环形缓冲区满，稍后再试
+                av_frame_free(&frame.frame);
+                break;
+            }
+        }
+        
+        av_frame_free(&frame.frame);
     }
 }
 
 
-void AudioPlayer::preloadAudioFrames() {
-    if (!audio_decoder_) {
+void AudioPlayer::writeToWASAPI() {
+    if (!is_audio_initialized_ || !is_audio_playing_ || !ring_buffer_) {
         return;
     }
     
-    // 限制音频缓冲区大小
-    const size_t MAX_AUDIO_BUFFER_SIZE = 10;
-    
-    while (audio_buffer_.size() < MAX_AUDIO_BUFFER_SIZE && !audio_decoder_->isEOF()) {
-        AudioDecoder::DecodedFrame frame;
-        if (audio_decoder_->readNextFrame(frame)) {
-            audio_buffer_.push(frame);
-        } else {
-            break;
-        }
+    // 检查缓冲区可用空间
+    UINT32 padding_frames;
+    HRESULT hr = audio_client_->GetCurrentPadding(&padding_frames);
+    if (FAILED(hr)) {
+        return;
     }
+    
+    UINT32 available_frames = buffer_frame_count_ - padding_frames;
+    if (available_frames == 0) {
+        return;
+    }
+    
+    // 计算要写入的帧数
+    size_t ring_available_samples = ring_buffer_->available_for_read();
+    UINT32 frames_to_write = (std::min)(available_frames, static_cast<UINT32>(ring_available_samples));
+    
+    if (frames_to_write == 0) {
+        // 环形缓冲区空，填充静音防止 underrun
+        fillSilence(available_frames);
+        return;
+    }
+    
+    // 获取缓冲区
+    BYTE* buffer_data;
+    hr = render_client_->GetBuffer(frames_to_write, &buffer_data);
+    if (FAILED(hr)) {
+        return;
+    }
+    
+    // 从环形缓冲区读取数据
+    std::vector<float> temp_buffer(frames_to_write * ring_buffer_->channels());
+    size_t samples_read = ring_buffer_->read(temp_buffer.data(), frames_to_write);
+    
+    if (samples_read > 0) {
+        // 写入到WASAPI缓冲区 (float32 -> float32, 直接拷贝)
+        std::memcpy(buffer_data, temp_buffer.data(), samples_read * ring_buffer_->channels() * sizeof(float));
+    }
+    
+    // 释放缓冲区
+    DWORD flags = (samples_read > 0) ? 0 : AUDCLNT_BUFFERFLAGS_SILENT;
+    hr = render_client_->ReleaseBuffer(static_cast<UINT32>(samples_read), flags);
 }
 
 
@@ -458,4 +528,26 @@ bool AudioPlayer::convertFloatToPcm(AVFrame* frame, BYTE* buffer, UINT32 frames_
     }
     
     return true;
+}
+
+
+
+
+void AudioPlayer::fillSilence(UINT32 frame_count) {
+    if (!is_audio_initialized_ || !render_client_ || frame_count == 0) {
+        return;
+    }
+    
+    // 获取缓冲区
+    BYTE* buffer_data;
+    HRESULT hr = render_client_->GetBuffer(frame_count, &buffer_data);
+    if (FAILED(hr)) {
+        return;
+    }
+    
+    // 填充静音 (float32格式下为0.0)
+    std::memset(buffer_data, 0, frame_count * audio_channels_ * sizeof(float));
+    
+    // 释放缓冲区并标记为静音
+    hr = render_client_->ReleaseBuffer(frame_count, AUDCLNT_BUFFERFLAGS_SILENT);
 } 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 MKV Video Player
 A simple video player built with PyQt6 Multimedia with reaktiv state management

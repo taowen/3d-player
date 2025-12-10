@@ -146,15 +146,6 @@ class PlayerViewModel:
         """Get volume as ratio (0.0-1.0) for audio output"""
         return self.volume() / 100.0
 
-    def handle_play_action(self) -> str:
-        """
-        Determine what play action should be taken
-
-        Returns:
-            "play" or "pause" action
-        """
-        return "pause" if self.is_playing() else "play"
-
     def handle_stop_action(self):
         """Handle stop action - reset playing state"""
         self.is_playing.set(False)
@@ -228,45 +219,3 @@ class PlayerViewModel:
     def should_update_slider(self) -> bool:
         """Check if slider should be updated (not while dragging)"""
         return not self.is_dragging()
-
-    def is_ready_for_playback(self) -> bool:
-        """Check if a file is loaded and ready for playback"""
-        return self.is_file_loaded() and self.duration() > 0
-
-    def get_progress_info(self) -> dict:
-        """
-        Get complete progress information
-
-        Returns:
-            Dict with position, duration, progress_percent, and formatted times
-        """
-        return {
-            "position_ms": self.position(),
-            "duration_ms": self.duration(),
-            "progress_percent": self.progress_percent(),
-            "current_time": self.current_time_text(),
-            "duration_time": self.duration_time_text(),
-        }
-
-    def get_state_snapshot(self) -> dict:
-        """
-        Get a complete snapshot of the current state
-        Useful for debugging and testing
-
-        Returns:
-            Dict containing all state values
-        """
-        return {
-            "position": self.position(),
-            "duration": self.duration(),
-            "is_playing": self.is_playing(),
-            "is_dragging": self.is_dragging(),
-            "volume": self.volume(),
-            "is_fullscreen": self.is_fullscreen(),
-            "file_path": self.file_path(),
-            "progress_percent": self.progress_percent(),
-            "current_time": self.current_time_text(),
-            "duration_time": self.duration_time_text(),
-            "file_name": self.file_name(),
-            "is_file_loaded": self.is_file_loaded(),
-        }

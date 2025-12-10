@@ -1,0 +1,12 @@
+[project]
+name = "mkv-player"
+version = "1.0.0"
+description = "A simple MKV video player built with PyQt6 Multimedia"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.6.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

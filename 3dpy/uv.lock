@@ -8,10 +8,14 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "pyqt6" },
+    { name = "reaktiv" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pyqt6", specifier = ">=6.6.0" }]
+requires-dist = [
+    { name = "pyqt6", specifier = ">=6.6.0" },
+    { name = "reaktiv", specifier = ">=0.19.4" },
+]
 
 [[package]]
 name = "pyqt6"
@@ -73,4 +77,13 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/43/0a648469a7e4f07df1c4ad6443f892e55631f24f7af30c7c946e458a82d1/pyqt6_sip-13.10.3-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3286a98e93608d51048e9046f557117424c8366be266b33ff852ee54ffa7b9bf", size = 324062, upload-time = "2025-12-06T13:19:40.308Z" },
     { url = "https://files.pythonhosted.org/packages/f3/0d/67d2095a932c007210437318c31fbc8376deb4e4491907861c4b9ac4ad9e/pyqt6_sip-13.10.3-cp314-cp314-win_amd64.whl", hash = "sha256:4fc6229ba7276266e3805b5517e7413cba79538f0c3ce7d2042a2027a90f99cf", size = 55076, upload-time = "2025-12-06T13:19:42.61Z" },
     { url = "https://files.pythonhosted.org/packages/f8/cd/f121be0271dc73d54f3580584103c046a8d2c06a2686b594b77fd677a5ef/pyqt6_sip-13.10.3-cp314-cp314-win_arm64.whl", hash = "sha256:efef47667ca009557d7ecf985b15f0bf440584fd634ee0eab19ec296effc7cca", size = 49464, upload-time = "2025-12-06T13:19:43.638Z" },
+]
+
+[[package]]
+name = "reaktiv"
+version = "0.19.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/62/f410c8216b50071314eaa0c2d3fa03a93ad6f4f30a6e19e9c80c2a8a2eec/reaktiv-0.19.4.tar.gz", hash = "sha256:473b581208aa6c021e7aa210ead9d2314444f9599fc001468dc4f87950fe3a93", size = 58392, upload-time = "2025-12-04T12:22:42.806Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/5d/0ccf437101339419d127866fc50b7946f980503d1ca25f81f6906ded061b/reaktiv-0.19.4-py3-none-any.whl", hash = "sha256:4000fadad1b6724ac71aa6b29b51ab83beb4c0b0fea496fa98ec6b015ff8a091", size = 25250, upload-time = "2025-12-04T12:22:43.564Z" },
 ]

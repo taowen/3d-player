@@ -5,6 +5,7 @@ description = "A simple MKV video player built with PyQt6 Multimedia"
 requires-python = ">=3.10"
 dependencies = [
     "PyQt6>=6.6.0",
+    "reaktiv>=0.19.4",
 ]
 
 [build-system]

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 MKV Video Player
-A simple video player built with PyQt6 Multimedia
+A simple video player built with PyQt6 Multimedia with reaktiv state management
+
+Run: uv run mkv-player.py
 """
 
 import sys
-import os
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -15,13 +16,19 @@ from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent
 from PyQt6.QtGui import QPalette, QColor, QKeyEvent
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
+from reaktiv import Effect
+
+from PlayerViewModel import PlayerViewModel
 
 
 class MKVPlayer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MKV Player")
+        self.setWindowTitle("MKV Player (Reactive)")
         self.setGeometry(100, 100, 1000, 600)
+
+        # === ViewModel (Business Logic) ===
+        self.vm = PlayerViewModel()
 
         # Media player and audio output
         self.media_player = QMediaPlayer()
@@ -32,24 +39,26 @@ class MKVPlayer(QMainWindow):
         self.video_widget = QVideoWidget()
         self.media_player.setVideoOutput(self.video_widget)
 
-        # Connect signals
-        self.media_player.positionChanged.connect(self.position_changed)
-        self.media_player.durationChanged.connect(self.duration_changed)
+        # Connect Qt signals to ViewModel reactive state
+        self.media_player.positionChanged.connect(lambda pos: self.vm.set_position(pos))
+        self.media_player.durationChanged.connect(lambda dur: self.vm.set_duration(dur))
+        self.media_player.playbackStateChanged.connect(
+            lambda state: self.vm.set_playing_state(state == QMediaPlayer.PlaybackState.PlayingState)
+        )
+
+        # Fullscreen state
+        self.normal_geometry = None
+
+        # Timer to hide controls in fullscreen (initialize BEFORE setup_effects)
+        self.hide_controls_timer = QTimer()
+        self.hide_controls_timer.timeout.connect(self.hide_controls)
+        self.hide_controls_timer.setSingleShot(True)
 
         # Create UI
         self.create_ui()
 
-        # Track if user is dragging slider
-        self.is_dragging = False
-
-        # Fullscreen state
-        self.is_fullscreen = False
-        self.normal_geometry = None
-
-        # Timer to hide controls in fullscreen
-        self.hide_controls_timer = QTimer()
-        self.hide_controls_timer.timeout.connect(self.hide_controls)
-        self.hide_controls_timer.setSingleShot(True)
+        # Setup reactive effects for UI updates (must be AFTER all initialization)
+        self.setup_effects()
 
         # Enable mouse tracking for fullscreen control visibility
         self.setMouseTracking(True)
@@ -144,148 +153,141 @@ class MKVPlayer(QMainWindow):
         self.file_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.file_label)
 
+    def setup_effects(self):
+        """Setup reactive effects for UI updates"""
+        # Update progress slider when position changes (but not while dragging)
+        Effect(lambda: (
+            self.position_slider.setValue(self.vm.get_slider_value_from_position())
+            if self.vm.should_update_slider() else None
+        ))
+
+        # Update time label
+        Effect(lambda: self.time_label.setText(self.vm.current_time_text()))
+
+        # Update duration label
+        Effect(lambda: self.duration_label.setText(self.vm.duration_time_text()))
+
+        # Update file name label
+        Effect(lambda: self.file_label.setText(self.vm.file_display_text()))
+
+        # Update play button icon
+        Effect(lambda: self.play_button.setIcon(
+            self.style().standardIcon(self._get_play_icon())
+        ))
+
+        # Update fullscreen button icon
+        Effect(lambda: self.fullscreen_button.setIcon(
+            self.style().standardIcon(self._get_fullscreen_icon())
+        ))
+
+        # Handle fullscreen UI changes
+        Effect(lambda: self.update_fullscreen_ui() if self.vm.is_fullscreen() else self.update_normal_ui())
+
+    def _get_play_icon(self):
+        """Get the appropriate play/pause icon from ViewModel state"""
+        icon_type = self.vm.play_icon_type()
+        return (QStyle.StandardPixmap.SP_MediaPause if icon_type == "pause"
+                else QStyle.StandardPixmap.SP_MediaPlay)
+
+    def _get_fullscreen_icon(self):
+        """Get the appropriate fullscreen icon from ViewModel state"""
+        icon_type = self.vm.fullscreen_icon_type()
+        return (QStyle.StandardPixmap.SP_TitleBarNormalButton if icon_type == "restore"
+                else QStyle.StandardPixmap.SP_TitleBarMaxButton)
+
     def open_file(self):
         """Open a video file"""
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path_str, _ = QFileDialog.getOpenFileName(
             self,
             "Open Video File",
             str(Path.home()),
             "Video Files (*.mkv *.mp4 *.avi *.mov *.wmv *.flv *.webm);;All Files (*.*)"
         )
 
-        if file_path:
-            self.media_player.setSource(QUrl.fromLocalFile(file_path))
+        if file_path_str:
+            self.media_player.setSource(QUrl.fromLocalFile(file_path_str))
+            self.vm.handle_file_loaded(file_path_str)
             self.play()
-
-            # Update file label
-            file_name = os.path.basename(file_path)
-            self.file_label.setText(f"Playing: {file_name}")
 
     def toggle_play(self):
         """Toggle play/pause"""
-        if self.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self.pause()
-        else:
+        if self.vm.toggle_play():
             self.play()
+        else:
+            self.pause()
 
     def play(self):
         """Play the video"""
         self.media_player.play()
-        self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPause))
+        # is_playing state is automatically updated via playbackStateChanged signal
 
     def pause(self):
         """Pause the video"""
         self.media_player.pause()
-        self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
+        # is_playing state is automatically updated via playbackStateChanged signal
 
     def stop(self):
         """Stop the video"""
         self.media_player.stop()
-        self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
-        self.position_slider.setValue(0)
-        self.time_label.setText("00:00:00")
+        self.vm.handle_stop_action()
 
     def set_volume(self, value):
         """Set the volume"""
-        self.audio_output.setVolume(value / 100.0)
+        self.vm.set_volume(value)
+        self.audio_output.setVolume(self.vm.get_volume_ratio())
 
     def on_slider_pressed(self):
         """Handle slider press"""
-        self.is_dragging = True
+        self.vm.start_dragging()
 
     def on_slider_released(self):
         """Handle slider release"""
-        self.is_dragging = False
+        self.vm.stop_dragging()
         self.set_position(self.position_slider.value())
 
-    def set_position(self, position):
-        """Set the playback position"""
-        if self.is_dragging:
-            # Convert slider position to media position
-            duration = self.media_player.duration()
-            if duration > 0:
-                new_position = int((position / 1000.0) * duration)
-                self.media_player.setPosition(new_position)
-
-    def position_changed(self, position):
-        """Handle position changed signal"""
-        if not self.is_dragging:
-            duration = self.media_player.duration()
-            if duration > 0:
-                self.position_slider.setValue(int((position / duration) * 1000))
-            self.time_label.setText(self.format_time(position))
-
-    def duration_changed(self, duration):
-        """Handle duration changed signal"""
-        self.duration_label.setText(self.format_time(duration))
-
-    def format_time(self, milliseconds):
-        """Format time in milliseconds to HH:MM:SS"""
-        if milliseconds < 0:
-            return "00:00:00"
-
-        seconds = milliseconds // 1000
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = seconds % 60
-
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    def set_position(self, slider_value):
+        """Set the playback position from slider value"""
+        new_position = self.vm.calculate_position_from_slider(slider_value)
+        self.media_player.setPosition(new_position)
 
     def toggle_fullscreen(self):
         """Toggle fullscreen mode"""
-        if self.is_fullscreen:
-            self.exit_fullscreen()
-        else:
-            self.enter_fullscreen()
+        self.vm.toggle_fullscreen()
 
-    def enter_fullscreen(self):
-        """Enter fullscreen mode"""
-        self.is_fullscreen = True
+    def update_fullscreen_ui(self):
+        """Update UI for fullscreen mode (called by reactive effect)"""
+        if not hasattr(self, 'control_panel'):
+            return  # UI not ready yet
+
         self.normal_geometry = self.geometry()
-
-        # Hide menu bar, status bar, and file label
         self.file_label.hide()
-
-        # Show fullscreen
         self.showFullScreen()
-
-        # Update button icon
-        self.fullscreen_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarNormalButton))
-
-        # Start timer to hide controls
         self.hide_controls_timer.start(3000)  # Hide after 3 seconds
 
-    def exit_fullscreen(self):
-        """Exit fullscreen mode"""
-        self.is_fullscreen = False
+    def update_normal_ui(self):
+        """Update UI for normal mode (called by reactive effect)"""
+        if not hasattr(self, 'control_panel'):
+            return  # UI not ready yet
 
-        # Stop hide timer
         self.hide_controls_timer.stop()
-
-        # Show all controls
         self.control_panel.show()
         self.progress_panel.show()
         self.file_label.show()
         self.setCursor(Qt.CursorShape.ArrowCursor)
-
-        # Restore normal window
         self.showNormal()
         if self.normal_geometry:
             self.setGeometry(self.normal_geometry)
 
-        # Update button icon
-        self.fullscreen_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton))
-
     def hide_controls(self):
         """Hide controls in fullscreen mode"""
-        if self.is_fullscreen:
+        if self.vm.is_fullscreen():
             self.control_panel.hide()
             self.progress_panel.hide()
             self.setCursor(Qt.CursorShape.BlankCursor)
 
     def show_controls(self):
         """Show controls in fullscreen mode"""
-        if self.is_fullscreen:
+        if self.vm.is_fullscreen():
             self.control_panel.show()
             self.progress_panel.show()
             self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -298,7 +300,7 @@ class MKVPlayer(QMainWindow):
             if event.type() == QEvent.Type.MouseButtonDblClick:
                 self.toggle_fullscreen()
                 return True
-            elif event.type() == QEvent.Type.MouseMove and self.is_fullscreen:
+            elif event.type() == QEvent.Type.MouseMove and self.vm.is_fullscreen():
                 self.show_controls()
                 return False
         return super().eventFilter(obj, event)
@@ -306,11 +308,14 @@ class MKVPlayer(QMainWindow):
     def keyPressEvent(self, event: QKeyEvent):
         """Handle key press events"""
         if event.key() == Qt.Key.Key_F11:
-            self.toggle_fullscreen()
-        elif event.key() == Qt.Key.Key_Escape and self.is_fullscreen:
-            self.exit_fullscreen()
+            self.vm.handle_f11_key()
+        elif event.key() == Qt.Key.Key_Escape:
+            self.vm.handle_escape_key()
         elif event.key() == Qt.Key.Key_Space:
-            self.toggle_play()
+            if self.vm.handle_space_key():
+                self.play()
+            else:
+                self.pause()
         else:
             super().keyPressEvent(event)
 

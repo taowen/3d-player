@@ -34,7 +34,7 @@ class MKVPlayer(QMainWindow):
         self.audio_output: QAudioOutput = QAudioOutput()
         self.media_player.setAudioOutput(self.audio_output)
 
-        self.video_widget: VideoWidgetGraphics = VideoWidgetGraphics(parent=None, dual_mode=True)
+        self.video_widget: VideoWidgetGraphics = VideoWidgetGraphics(parent=None)
         self.media_player.setVideoOutput(self.video_widget.get_video_sink())
 
         self._connect_media_player_signals()

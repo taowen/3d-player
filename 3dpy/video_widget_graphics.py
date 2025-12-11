@@ -13,25 +13,22 @@ class SubtitleTextItem(QGraphicsTextItem):
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
         self.setDefaultTextColor(QColor(255, 255, 255))
-        self.setFont(QFont("Arial", 24, QFont.Weight.Bold))
+        # Font size will be dynamically set by VideoWidgetGraphics._update_subtitle_font_size()
+        self.setFont(QFont("Arial", 16, QFont.Weight.Normal))
 
-        self.background_color = QColor(0, 0, 0, 180)
+        self.background_color = QColor(0, 0, 0, 200)
         self.outline_color = QColor(0, 0, 0)
-        self.outline_width = 3
+        self.outline_width = 1
 
     def paint(self, painter, option, widget=None):
-        rect = self.boundingRect()
-        padding = 10
-        bg_rect = rect.adjusted(-padding, -padding, padding, padding)
-        painter.fillRect(bg_rect, self.background_color)
+        # Get font metrics for accurate text positioning
+        text = self.toPlainText()
 
+        # Create text path with correct baseline position
         path = QPainterPath()
-        path.addText(rect.topLeft(), self.font(), self.toPlainText())
+        path.addText(0, 0, self.font(), text)
 
-        painter.setPen(QPen(self.outline_color, self.outline_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(path)
-
+        # Draw filled text
         painter.setPen(QPen(self.defaultTextColor()))
         painter.drawPath(path)
 
@@ -56,11 +53,13 @@ class VideoWidgetGraphics(QGraphicsView):
 
         self.left_subtitle = SubtitleTextItem()
         self.left_subtitle.setZValue(1)
+        self.left_subtitle.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.left_subtitle.hide()
         self.scene.addItem(self.left_subtitle)
 
         self.right_subtitle = SubtitleTextItem()
         self.right_subtitle.setZValue(1)
+        self.right_subtitle.setFlag(QGraphicsTextItem.GraphicsItemFlag.ItemIgnoresTransformations)
         self.right_subtitle.hide()
         self.scene.addItem(self.right_subtitle)
 

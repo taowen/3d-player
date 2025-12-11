@@ -89,5 +89,13 @@ class VideoWidgetGraphics(QGraphicsView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # Set scene rect to match the view size for full coverage
+        view_rect = self.viewport().rect()
+        self.scene.setSceneRect(0, 0, view_rect.width(), view_rect.height())
+
+        # Set video item to fill the entire scene while maintaining aspect ratio
+        if self.video_item.size().isValid():
+            self.video_item.setSize(self.scene.sceneRect().size())
+
         self.fitInView(self.scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
         self._update_subtitle_positions()

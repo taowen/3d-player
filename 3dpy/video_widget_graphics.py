@@ -2,35 +2,19 @@
 from typing import Optional
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsTextItem
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPen, QBrush, QPainterPath
-from PyQt6.QtMultimedia import QMediaPlayer
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QColor
 
 
 class SubtitleTextItem(QGraphicsTextItem):
-    """Subtitle text item with outline effect"""
+    """Subtitle text item for side-by-side 3D video"""
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
         self.setDefaultTextColor(QColor(255, 255, 255))
         # Font size will be dynamically set by VideoWidgetGraphics._update_subtitle_font_size()
-        self.setFont(QFont("Arial", 16, QFont.Weight.Normal))
-
-        self.background_color = QColor(0, 0, 0, 200)
-        self.outline_color = QColor(0, 0, 0)
-        self.outline_width = 1
-
-    def paint(self, painter, option, widget=None):
-        # Get font metrics for accurate text positioning
-        text = self.toPlainText()
-
-        # Create text path with correct baseline position
-        path = QPainterPath()
-        path.addText(0, 0, self.font(), text)
-
-        # Draw filled text
-        painter.setPen(QPen(self.defaultTextColor()))
-        painter.drawPath(path)
+        # Use Microsoft YaHei for better Chinese character rendering on Windows
+        self.setFont(QFont("Microsoft YaHei", 16, QFont.Weight.Normal))
 
 
 class VideoWidgetGraphics(QGraphicsView):

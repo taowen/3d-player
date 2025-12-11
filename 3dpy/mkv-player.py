@@ -86,7 +86,7 @@ class MKVPlayer(QMainWindow):
         central_widget.setLayout(layout)
 
         layout.addWidget(self.video_widget, stretch=1)
-        self.video_widget.show_subtitle("Hello")
+        self.video_widget.show_subtitle("你好，世界")
 
         self.control_panel = self._create_control_panel()
         layout.addWidget(self.control_panel, stretch=0)

@@ -6,12 +6,37 @@ requires-python = ">=3.10"
 dependencies = [
     "PyQt6>=6.6.0",
     "reaktiv>=0.19.4",
+    "numpy>=2.0.0",
+    "torch==2.9.1"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
 ]
+cpu = ["torch==2.9.1"]
+cu130 = ["torch==2.9.1"]
+
+[tool.uv]
+# The cpu and cu130 extras are mutually exclusive
+conflicts = [[{ extra = "cpu" }, { extra = "cu130" }]]
+
+[tool.uv.sources]
+# Install torch from PyTorch indexes based on extras
+torch = [
+    { index = "pytorch-cu130", extra = "cu130" },
+    { index = "pytorch-cpu", extra = "cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
 [build-system]
 requires = ["setuptools>=61.0"]

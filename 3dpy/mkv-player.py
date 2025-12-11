@@ -7,12 +7,13 @@ Run: uv run mkv-player.py
 
 import sys
 from pathlib import Path
+from typing import Optional, Any
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QSlider, QLabel, QFileDialog, QStyle
 )
-from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent
-from PyQt6.QtGui import QPalette, QColor, QKeyEvent
+from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent, QRect
+from PyQt6.QtGui import QPalette, QColor, QKeyEvent, QCloseEvent
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from reaktiv import Effect
@@ -21,21 +22,21 @@ from PlayerViewModel import PlayerViewModel
 
 
 class MKVPlayer(QMainWindow):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("MKV Player (Reactive)")
         self.setGeometry(100, 100, 1000, 600)
 
         # === ViewModel (Business Logic) ===
-        self.vm = PlayerViewModel()
+        self.vm: PlayerViewModel = PlayerViewModel()
 
         # Media player and audio output
-        self.media_player = QMediaPlayer()
-        self.audio_output = QAudioOutput()
+        self.media_player: QMediaPlayer = QMediaPlayer()
+        self.audio_output: QAudioOutput = QAudioOutput()
         self.media_player.setAudioOutput(self.audio_output)
 
         # Video widget
-        self.video_widget = QVideoWidget()
+        self.video_widget: QVideoWidget = QVideoWidget()
         self.media_player.setVideoOutput(self.video_widget)
 
         # Connect Qt signals to ViewModel reactive state
@@ -46,10 +47,10 @@ class MKVPlayer(QMainWindow):
         )
 
         # Fullscreen state
-        self.normal_geometry = None
+        self.normal_geometry: Optional[QRect] = None
 
         # Timer to hide controls in fullscreen (initialize BEFORE setup_effects)
-        self.hide_controls_timer = QTimer()
+        self.hide_controls_timer: QTimer = QTimer()
         self.hide_controls_timer.timeout.connect(self.hide_controls)
         self.hide_controls_timer.setSingleShot(True)
 
@@ -64,10 +65,23 @@ class MKVPlayer(QMainWindow):
         self.video_widget.setMouseTracking(True)
         self.video_widget.installEventFilter(self)
 
-    def create_ui(self):
+        # UI widgets (type declarations)
+        self.open_button: QPushButton
+        self.play_button: QPushButton
+        self.stop_button: QPushButton
+        self.fullscreen_button: QPushButton
+        self.volume_slider: QSlider
+        self.position_slider: QSlider
+        self.time_label: QLabel
+        self.duration_label: QLabel
+        self.file_label: QLabel
+        self.control_panel: QWidget
+        self.progress_panel: QWidget
+
+    def create_ui(self) -> None:
         """Create the user interface"""
         # Central widget
-        central_widget = QWidget()
+        central_widget: QWidget = QWidget()
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -152,7 +166,7 @@ class MKVPlayer(QMainWindow):
         self.file_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.file_label)
 
-    def setup_effects(self):
+    def setup_effects(self) -> None:
         """Setup reactive effects for UI updates"""
         # Update progress slider when position changes (but not while dragging)
         Effect(lambda: (
@@ -182,19 +196,19 @@ class MKVPlayer(QMainWindow):
         # Handle fullscreen UI changes
         Effect(lambda: self.update_fullscreen_ui() if self.vm.is_fullscreen() else self.update_normal_ui())
 
-    def _get_play_icon(self):
+    def _get_play_icon(self) -> QStyle.StandardPixmap:
         """Get the appropriate play/pause icon from ViewModel state"""
         icon_type = self.vm.play_icon_type()
         return (QStyle.StandardPixmap.SP_MediaPause if icon_type == "pause"
                 else QStyle.StandardPixmap.SP_MediaPlay)
 
-    def _get_fullscreen_icon(self):
+    def _get_fullscreen_icon(self) -> QStyle.StandardPixmap:
         """Get the appropriate fullscreen icon from ViewModel state"""
         icon_type = self.vm.fullscreen_icon_type()
         return (QStyle.StandardPixmap.SP_TitleBarNormalButton if icon_type == "restore"
                 else QStyle.StandardPixmap.SP_TitleBarMaxButton)
 
-    def open_file(self):
+    def open_file(self) -> None:
         """Open a video file"""
         file_path_str, _ = QFileDialog.getOpenFileName(
             self,
@@ -208,52 +222,52 @@ class MKVPlayer(QMainWindow):
             self.vm.handle_file_loaded(file_path_str)
             self.play()
 
-    def toggle_play(self):
+    def toggle_play(self) -> None:
         """Toggle play/pause"""
         if self.vm.toggle_play():
             self.play()
         else:
             self.pause()
 
-    def play(self):
+    def play(self) -> None:
         """Play the video"""
         self.media_player.play()
         # is_playing state is automatically updated via playbackStateChanged signal
 
-    def pause(self):
+    def pause(self) -> None:
         """Pause the video"""
         self.media_player.pause()
         # is_playing state is automatically updated via playbackStateChanged signal
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the video"""
         self.media_player.stop()
         self.vm.handle_stop_action()
 
-    def set_volume(self, value):
+    def set_volume(self, value: int) -> None:
         """Set the volume"""
         self.vm.set_volume(value)
         self.audio_output.setVolume(self.vm.get_volume_ratio())
 
-    def on_slider_pressed(self):
+    def on_slider_pressed(self) -> None:
         """Handle slider press"""
         self.vm.start_dragging()
 
-    def on_slider_released(self):
+    def on_slider_released(self) -> None:
         """Handle slider release"""
         self.vm.stop_dragging()
         self.set_position(self.position_slider.value())
 
-    def set_position(self, slider_value):
+    def set_position(self, slider_value: int) -> None:
         """Set the playback position from slider value"""
         new_position = self.vm.calculate_position_from_slider(slider_value)
         self.media_player.setPosition(new_position)
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self) -> None:
         """Toggle fullscreen mode"""
         self.vm.toggle_fullscreen()
 
-    def update_fullscreen_ui(self):
+    def update_fullscreen_ui(self) -> None:
         """Update UI for fullscreen mode (called by reactive effect)"""
         if not hasattr(self, 'control_panel'):
             return  # UI not ready yet
@@ -263,7 +277,7 @@ class MKVPlayer(QMainWindow):
         self.showFullScreen()
         self.hide_controls_timer.start(3000)  # Hide after 3 seconds
 
-    def update_normal_ui(self):
+    def update_normal_ui(self) -> None:
         """Update UI for normal mode (called by reactive effect)"""
         if not hasattr(self, 'control_panel'):
             return  # UI not ready yet
@@ -277,14 +291,14 @@ class MKVPlayer(QMainWindow):
         if self.normal_geometry:
             self.setGeometry(self.normal_geometry)
 
-    def hide_controls(self):
+    def hide_controls(self) -> None:
         """Hide controls in fullscreen mode"""
         if self.vm.is_fullscreen():
             self.control_panel.hide()
             self.progress_panel.hide()
             self.setCursor(Qt.CursorShape.BlankCursor)
 
-    def show_controls(self):
+    def show_controls(self) -> None:
         """Show controls in fullscreen mode"""
         if self.vm.is_fullscreen():
             self.control_panel.show()
@@ -293,7 +307,7 @@ class MKVPlayer(QMainWindow):
             # Restart timer to hide controls
             self.hide_controls_timer.start(3000)
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, obj: Any, event: QEvent) -> bool:
         """Event filter for video widget to handle double-click"""
         if obj == self.video_widget:
             if event.type() == QEvent.Type.MouseButtonDblClick:
@@ -304,7 +318,7 @@ class MKVPlayer(QMainWindow):
                 return False
         return super().eventFilter(obj, event)
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle key press events"""
         if event.key() == Qt.Key.Key_F11:
             self.vm.handle_f11_key()
@@ -318,18 +332,18 @@ class MKVPlayer(QMainWindow):
         else:
             super().keyPressEvent(event)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close event"""
         self.media_player.stop()
         event.accept()
 
 
-def main():
-    app = QApplication(sys.argv)
+def main() -> None:
+    app: QApplication = QApplication(sys.argv)
 
     # Set dark theme
     app.setStyle("Fusion")
-    dark_palette = QPalette()
+    dark_palette: QPalette = QPalette()
     dark_palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
     dark_palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
     dark_palette.setColor(QPalette.ColorRole.Base, QColor(25, 25, 25))
@@ -345,7 +359,7 @@ def main():
     dark_palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
     app.setPalette(dark_palette)
 
-    player = MKVPlayer()
+    player: MKVPlayer = MKVPlayer()
     player.show()
     sys.exit(app.exec())
 

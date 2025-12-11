@@ -13,7 +13,7 @@ class PlayerViewModel:
     Completely decoupled from Qt for easy testing
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # === Reactive State (Signals) ===
         # Playback state
         self.position = Signal(0)  # Current playback position in ms
@@ -62,32 +62,32 @@ class PlayerViewModel:
 
     # === State Update Methods ===
 
-    def set_position(self, position_ms: int):
+    def set_position(self, position_ms: int) -> None:
         """Update playback position"""
         self.position.set(position_ms)
 
-    def set_duration(self, duration_ms: int):
+    def set_duration(self, duration_ms: int) -> None:
         """Update total duration"""
         self.duration.set(duration_ms)
 
-    def set_playing_state(self, is_playing: bool):
+    def set_playing_state(self, is_playing: bool) -> None:
         """Update playing state"""
         self.is_playing.set(is_playing)
 
-    def set_volume(self, volume: int):
+    def set_volume(self, volume: int) -> None:
         """Update volume (0-100)"""
         if 0 <= volume <= 100:
             self.volume.set(volume)
 
-    def set_dragging(self, is_dragging: bool):
+    def set_dragging(self, is_dragging: bool) -> None:
         """Update dragging state"""
         self.is_dragging.set(is_dragging)
 
-    def set_fullscreen(self, is_fullscreen: bool):
+    def set_fullscreen(self, is_fullscreen: bool) -> None:
         """Update fullscreen state"""
         self.is_fullscreen.set(is_fullscreen)
 
-    def set_file_path(self, file_path: str):
+    def set_file_path(self, file_path: str) -> None:
         """Update current file path"""
         self.file_path.set(file_path)
 
@@ -102,15 +102,15 @@ class PlayerViewModel:
         self.is_playing.set(new_state)
         return new_state
 
-    def toggle_fullscreen(self):
+    def toggle_fullscreen(self) -> None:
         """Toggle fullscreen state"""
         self.is_fullscreen.set(not self.is_fullscreen())
 
-    def start_dragging(self):
+    def start_dragging(self) -> None:
         """Start slider dragging"""
         self.is_dragging.set(True)
 
-    def stop_dragging(self):
+    def stop_dragging(self) -> None:
         """Stop slider dragging"""
         self.is_dragging.set(False)
 
@@ -146,22 +146,22 @@ class PlayerViewModel:
         """Get volume as ratio (0.0-1.0) for audio output"""
         return self.volume() / 100.0
 
-    def handle_stop_action(self):
+    def handle_stop_action(self) -> None:
         """Handle stop action - reset playing state"""
         self.is_playing.set(False)
 
-    def handle_file_loaded(self, file_path: str):
+    def handle_file_loaded(self, file_path: str) -> None:
         """Handle when a new file is loaded"""
         self.file_path.set(file_path)
         # Auto-play on file load
         self.is_playing.set(True)
 
-    def handle_escape_key(self):
+    def handle_escape_key(self) -> None:
         """Handle escape key - exit fullscreen if active"""
         if self.is_fullscreen():
             self.is_fullscreen.set(False)
 
-    def handle_f11_key(self):
+    def handle_f11_key(self) -> None:
         """Handle F11 key - toggle fullscreen"""
         self.toggle_fullscreen()
 

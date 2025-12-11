@@ -19,6 +19,7 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 from reaktiv import Effect
 
 from PlayerViewModel import PlayerViewModel
+from video_widget_with_subtitle import VideoWidgetWithSubtitle
 
 
 class MKVPlayer(QMainWindow):
@@ -35,9 +36,9 @@ class MKVPlayer(QMainWindow):
         self.audio_output: QAudioOutput = QAudioOutput()
         self.media_player.setAudioOutput(self.audio_output)
 
-        # Video widget
-        self.video_widget: QVideoWidget = QVideoWidget()
-        self.media_player.setVideoOutput(self.video_widget)
+        # Video widget with subtitle support
+        self.video_widget: VideoWidgetWithSubtitle = VideoWidgetWithSubtitle(parent=None, dual_mode=True)
+        self.media_player.setVideoSink(self.video_widget.get_video_sink())
 
         # Connect Qt signals to ViewModel reactive state
         self.media_player.positionChanged.connect(lambda pos: self.vm.set_position(pos))
@@ -91,8 +92,10 @@ class MKVPlayer(QMainWindow):
         central_widget.setLayout(layout)
 
         # Video widget
-        self.video_widget.setStyleSheet("background-color: black;")
         layout.addWidget(self.video_widget, stretch=1)  # Give video widget all available space
+
+        # Show test subtitle
+        self.video_widget.show_subtitle("Hello World")
 
         # Control panel
         control_layout = QHBoxLayout()

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional, Any
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QSlider, QLabel, QFileDialog, QStyle
+    QPushButton, QSlider, QLabel, QFileDialog, QStyle, QMessageBox
 )
 from PyQt6.QtCore import Qt, QUrl, QTimer, QEvent, QRect
 from PyQt6.QtGui import QPalette, QColor, QKeyEvent, QCloseEvent
@@ -47,6 +47,7 @@ class MKVPlayer(QMainWindow):
         self._enable_fullscreen_mouse_tracking()
 
         self.open_button: QPushButton
+        self.load_subtitle_button: QPushButton
         self.play_button: QPushButton
         self.stop_button: QPushButton
         self.fullscreen_button: QPushButton
@@ -104,6 +105,10 @@ class MKVPlayer(QMainWindow):
         self.open_button = QPushButton("Open")
         self.open_button.clicked.connect(self.open_file)
         control_layout.addWidget(self.open_button)
+
+        self.load_subtitle_button = QPushButton("Load Subtitle")
+        self.load_subtitle_button.clicked.connect(self.load_subtitle)
+        control_layout.addWidget(self.load_subtitle_button)
 
         self.play_button = QPushButton()
         self.play_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
@@ -169,6 +174,7 @@ class MKVPlayer(QMainWindow):
             self.style().standardIcon(self._get_fullscreen_icon())
         ))
         Effect(lambda: self.update_fullscreen_ui() if self.vm.is_fullscreen() else self.update_normal_ui())
+        Effect(lambda: self.video_widget.show_subtitle(self.vm.current_subtitle_text()))
 
     def _get_play_icon(self) -> QStyle.StandardPixmap:
         icon_type = self.vm.play_icon_type()
@@ -192,6 +198,23 @@ class MKVPlayer(QMainWindow):
             self.media_player.setSource(QUrl.fromLocalFile(file_path_str))
             self.vm.handle_file_loaded(file_path_str)
             self.play()
+
+    def load_subtitle(self) -> None:
+        file_path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Subtitle File",
+            str(Path.home()),
+            "Subtitle Files (*.srt);;All Files (*.*)"
+        )
+
+        if file_path_str:
+            success = self.vm.load_subtitle_file(file_path_str)
+            if not success:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    "Failed to load subtitle file. Please check the file format."
+                )
 
     def toggle_play(self) -> None:
         if self.vm.toggle_play():
